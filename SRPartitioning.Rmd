@@ -1,0 +1,596 @@
+---
+title: "SRPartitioning"
+author: "Jinshi"
+date: "10/5/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(results = 'hide', message = TRUE, include = TRUE, echo = FALSE,
+                      fig.height = 5, fig.width = 7)
+
+DATA_DIR <- 'Data'
+OUT_DIR <- 'outputs'
+```
+
+
+```{r loading package}
+library(dplyr)
+library(tidyr)
+library(magrittr)
+library(ggplot2)
+theme_set(theme_bw())
+library(here)
+library(hexbin)
+library(cowplot)
+library(SpatialEpi)
+library(patchwork)
+library(ggridges)
+# Note raster masks 'tidyr::extract' and 'dplyr::select'
+library(raster)
+library(randomForest)
+library(caret)
+library(e1071)
+source("functions.R")
+```
+
+
+```{r prepare data}
+srdb_all <- drake::readd(srdb_all) %>% 
+  mutate(MAT = coalesce(MAT, MAT_WC),
+         MAP = coalesce(MAP, MAP_WC),
+         absLatitude = abs(Latitude),
+         MiddleClimate = as.factor(MiddleClimate)) %>% 
+  filter(RC_annual < 1 & RC_annual > 0)
+
+# ecosystem2 NA to NotReported
+srdb_all$Ecosystem2 <- as.character(srdb_all$Ecosystem2)
+srdb_all[is.na(srdb_all$Ecosystem2),]$Ecosystem2 <- "Not reported"
+# Make sure there is no missing data
+allData = srdb_all %>% 
+  dplyr::select(RC_annual, MAT, MAP, AM_percent, EM_percent, ER_percent, NM_percent,
+                BM_aboveground, BM_belowground, N_dep_1993,
+                # MiddleClimate,
+                Ecosystem2, Latitude, Longitude,
+                bd_soilgrids, clay_soilgrids, soc_soilgrids, EVI_mean) %>% na.omit()
+  
+# Extract global climate space data
+map_mat_global <- drake::readd(map_mat_global)
+
+# prepare data for global RC_annual prediction
+globalData <- drake::readd(globalData) %>% 
+  na.omit() %>% 
+  mutate(absLatitude = abs(Latitude)) ->
+  globalData
+
+counties <- drake::readd(counties)
+```
+
+
+```{r check NULL values}
+srdb_all %>% 
+  filter(is.na(MAP))
+
+allData %>% dplyr::select(Ecosystem2) %>% unique()
+```
+
+
+```{r srdb vasialization}
+ggplot(srdb_all, aes(x = Leaf_habit, fill = Leaf_habit)) +
+  geom_bar() +
+  theme_minimal()
+
+srdb_all %>% 
+  ggplot(aes(Rs_annual, Leaf_habit, fill = 0.5 - abs(0.5 - stat(ecdf)))) +
+  stat_density_ridges(geom = "density_ridges_gradient", calc_ecdf = TRUE) +
+  scale_fill_viridis_c(name = "Probability", direction = -1) +
+  xlab(expression(Annnual~R[S]~(g~C~m^{-2}~yr^{-1}))) +
+  ylab(element_blank()) +
+  scale_y_discrete(labels= c("Not available", "Deciduous", "Evergreen", "Mixed"))
+
+srdb_all %>% 
+  ggplot(aes(RC_annual, Leaf_habit, fill = 0.5 - abs(0.5 - stat(ecdf)))) +
+  stat_density_ridges(geom = "density_ridges_gradient", calc_ecdf = TRUE) +
+  scale_fill_viridis_c(name = "Probability", direction = -1) +
+  xlab(expression(R[C]~Annual)) +
+  ylab(element_blank()) +
+  scale_y_discrete(labels= c("Not available", "Deciduous", "Evergreen", "Mixed"))
+
+```
+
+
+## Pulling the Climate Data and Comparing the Distribution to that in the SRDB
+The first is a plot of the global distribution of mean annual temperature (MAT) and precipitation (MAP). 
+The second also includes the values from all SRDB sites, plotted on top of the first graph.
+```{r Site map, cache = TRUE, fig.height = 7, fig.width = 8}
+# Plot panel a - global map with RC_annualsites
+ggplot(data = counties) + 
+  geom_polygon(aes(x = long, y = lat, group = group),
+               color = "white", fill = 'gray', alpha = 0.5) + 
+  guides(fill=FALSE) +
+  geom_point(data = allData,
+             aes(x=Longitude, y=Latitude, col = Ecosystem2),
+             alpha = 0.75,
+             stroke = 0.75 ) +
+  scale_x_continuous(name="Longitude", breaks=seq(-180,180, 60),labels = seq(-180,180, 60))+
+  scale_y_continuous(limits = c(-60, 80),name="Latitude", breaks=seq(-60,80,30),labels = seq(-60,80,30)) +
+  scale_size_continuous(name = "RC_annual") +
+  scale_colour_discrete(name = element_blank(),
+                        breaks=c("Agriculture", "Grassland", "Not reported", "Savanna", "Shrubland", "T&B FOR", "Tropic FOR", "Urban", "Wetland"),
+                        labels=c("Agriculture (n=261)", "Grassland (n=140)", "Not reported (n=2)", "Savanna (n=71)", "Shrubland (n=21)",
+                                 "T&B FOR (n=256)", "Tropic FOR (n=70)", "Urban (n=2)", "Wetland (n=59)")) +
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank()) ->
+  gmap_a
+
+# This chunk pulls climate data from WorldClim2 and makes some graphs from the mean annual temperature and precipitation data
+# Download worldclim data for precip and tmean if necessary, into w10/ folder
+# global distribution of MAT and MAP with points from the SRDB sites
+map_mat_global %>% 
+  ggplot(aes(x = mat/10, y = map)) +
+  geom_hex(bins = 100, na.rm = TRUE) +
+  scale_fill_viridis_c(name = "Grid cells", begin = 0.85, end = 0) +
+  geom_point(data = srdb_all, aes(x = MAT_WC, y = MAP_WC),
+             color = "black", shape = 1, size = 1.5, na.rm = TRUE) +
+  # theme(legend.position = c(0.2, 0.65)) +
+  labs(x = "MAT (°C)", y = "MAP (mm)") ->
+  gmap_b
+
+gmap_a / gmap_b +
+  plot_annotation(tag_levels = 'a')
+
+allData %>% 
+  count(Ecosystem2)
+
+srdb_all %>% 
+  count(Ecosystem2)
+```
+
+
+```{r check WorldClim2 data}
+# Comparing MAT
+ggplot(srdb_all, aes(x = MAT_WC, y = MAT)) + 
+  geom_point(size = 1.5, color = "chartreuse3") +
+  theme_minimal() +
+  labs(title = "Comparing WorldClim2 MATs to SRDB MATs", x = "WorldClim2 MAT (°C)", y = "Reported SRDB MAT (°C)") +
+  geom_abline(intercept = 0, slope = 1, linetype = "dashed", size = 1)
+
+# Comparing MAP
+ggplot(srdb_all, aes(x = MAP_WC, y = MAP)) + 
+  geom_point(size = 1.5, color = "chartreuse3") +
+  theme_minimal() +
+  labs(title = "Comparing WorldClim2 MAPs to SRDB MAPs", x = "WorldClim2 MAP (mm)", y = "Reported SRDB MAP (mm)") +
+  geom_abline(intercept = 0, slope = 1, linetype = "dashed", size = 1)
+
+## Makes some scatterplots with the SRDB data
+ggplot(srdb_all, aes(x = MAT_WC, y = Rs_annual)) +
+  geom_point(color = "chartreuse3") +
+  ylim(0, 3000) + 
+  theme_minimal()
+
+ggplot(srdb_all, aes(x = MAT_WC, y = Rh_annual)) +
+  geom_point(color = "chartreuse3") +
+  ylim(0, 2000) +
+  theme_minimal()
+
+ggplot(srdb_all, aes(x = MAP_WC, y = Rs_annual)) +
+  geom_point(color = "chartreuse3") +
+  ylim(0, 3000) + 
+  theme_minimal()
+
+ggplot(srdb_all, aes(x = MAP_WC, y = Rh_annual)) +
+  geom_point(color = "chartreuse3") +
+  ylim(0, 2000) +
+  theme_minimal()
+
+ggplot(srdb_all, aes(x = Leaf_habit, y = MAT_WC, fill = Leaf_habit)) +
+  geom_violin(draw_quantiles = c(.25, .5, .75)) +
+  theme_minimal()
+
+ggplot(srdb_all, aes(x = Leaf_habit, y = MAP_WC, fill = Leaf_habit)) +
+  geom_boxplot() +
+  theme_minimal()
+
+ggplot(srdb_all, aes(x = MAT_WC, y = MAP_WC, col = Leaf_habit)) +
+  geom_point() +
+  theme_minimal()
+```
+
+```{r Micro data graphs}
+
+ggplot(srdb_all, aes(x = Longitude, y = Latitude, col = AM_percent)) + 
+  geom_point(size = 1.5) + 
+  lims(x = c(-180, 180), y = c(-50, 80), color = c(0, 100)) + 
+  theme_minimal()
+
+ggplot(srdb_all, aes(x = Longitude, y = Latitude, col = EM_percent)) + 
+  geom_point(size = 1.5) + 
+  lims(x = c(-180, 180), y = c(-50, 80), color = c(0, 100)) + 
+  theme_minimal()
+
+ggplot(srdb_all, aes(x = Longitude, y = Latitude, col = ER_percent)) + 
+  geom_point(size = 1.5) + 
+  lims(x = c(-180, 180), y = c(-50, 80), color = c(0, 100)) + 
+  theme_minimal()
+
+ggplot(srdb_all, aes(x = Longitude, y = Latitude, col = NM_percent)) + 
+  geom_point(size = 1.5) + 
+  lims(x = c(-180, 180), y = c(-50, 80), color = c(0, 100)) + 
+  theme_minimal()
+
+# None of these seem to show correlations with mean annual precipitation, with the exception of ER mycorrhizae.
+ggplot(srdb_all, aes(x = MAT_WC, y = AM_percent)) + 
+  geom_point(size = 1.5, color = "chartreuse3") + 
+  theme_minimal()
+
+ggplot(srdb_all, aes(x = MAT_WC, y = EM_percent)) + 
+  geom_point(size = 1.5, color = "chartreuse3") + 
+  theme_minimal()
+
+ggplot(srdb_all, aes(x = MAT_WC, y = ER_percent)) + 
+  geom_point(size = 1.5, color = "chartreuse3") + 
+  theme_minimal()
+
+ggplot(srdb_all, aes(x = MAT_WC, y = NM_percent)) + 
+  geom_point(size = 1.5, color = "chartreuse3") + 
+  theme_minimal()
+
+# Microriza vs MAP
+ggplot(srdb_all, aes(x = MAP_WC, y = ER_percent)) + 
+  geom_point(size = 1.5, color = "chartreuse3") + 
+  theme_minimal()
+
+ggplot(srdb_all, aes(x = Leaf_habit, y = AM_percent, fill = Leaf_habit)) +
+  geom_violin(draw_quantiles = c(.25, .5, .75)) +
+  theme_minimal()
+
+ggplot(srdb_all, aes(x = Leaf_habit, y = EM_percent, fill = Leaf_habit)) +
+  geom_violin(draw_quantiles = c(.25, .5, .75)) +
+  theme_minimal()
+
+ggplot(srdb_all, aes(x = Leaf_habit, y = ER_percent, fill = Leaf_habit)) +
+  geom_boxplot() +
+  theme_minimal()
+
+ggplot(srdb_all, aes(x = Leaf_habit, y = NM_percent, fill = Leaf_habit)) +
+  geom_violin(draw_quantiles = c(.25, .5, .75)) +
+  theme_minimal()
+```
+
+
+```{r BD, SOC and clay vs RC_annual}
+srdb_all %>% ggplot(aes(x = MAT, y = RC_annual)) +
+  geom_point() +
+  geom_smooth(method = "lm") +
+  theme_minimal()
+
+srdb_all %>% ggplot(aes(x = MAP, y = RC_annual)) +
+  geom_point() +
+  geom_smooth(method = "lm") +
+  theme_minimal()
+
+srdb_all %>% ggplot(aes(x = bd_soilgrids, y = RC_annual)) +
+  geom_point() +
+  geom_smooth(method = "lm") +
+  theme_minimal()
+
+srdb_all %>% ggplot(aes(x = clay_soilgrids, y = RC_annual)) +
+  geom_point() +
+  geom_smooth(method = "lm") +
+  theme_minimal()
+
+srdb_all %>% ggplot(aes(x = soc_soilgrids, y = RC_annual)) +
+  geom_point() +
+  geom_smooth(method = "lm") +
+  theme_minimal()
+
+srdb_all %>% ggplot(aes(x = soc_soilgrids, y = Rs_annual)) +
+  geom_point() +
+  geom_smooth(method = "lm") +
+  theme_minimal()
+
+srdb_all %>% ggplot(aes(x = EVI_mean, y = Rs_annual)) +
+  geom_point() +
+  geom_smooth(method = "lm") +
+  theme_minimal()
+
+srdb_all %>% ggplot(aes(x = EVI_mean, y = RC_annual)) +
+  geom_point() +
+  geom_smooth(method = "lm") +
+  theme_minimal()
+```
+
+
+## RF modelling
+### Improving the model
+Here is a graph of the error vs the number of trees in the model and a graph of how the error varies with different values of mtry.
+mtry is a parameter for this random forest function that sets how many variables are tried when making each node of a regression tree.
+The number of trees and this mtry value are both input parameters used to produce the random forest model.
+```{r RF tune}
+# Tune with different mtry values
+tuneRF(subset(allData, select = -c(RC_annual, Site_ID, Longitude, Latitude, Manipulation)), 
+       allData[, 6],
+       stepFactor = 2,
+       plot = TRUE,
+       ntreetry = 200, # Based on the plot above, 200 trees seems reasonable
+       trace = TRUE,
+       improve = .01)
+```
+
+First, I will use the default settings in the randomForest package to make a random forest model to predict the root contribution to Rs (RC). 
+```{r create RF model for prediction}
+# set.seed(191982)
+## Use random forest machine learning to create a model to predict Rs partitioning
+# Set seed to a specific value, for reproducability
+# Make a random forest model
+model <- function() {
+  randomForest(RC_annual ~ MAT + MAP +
+                 AM_percent + EM_percent + ER_percent + NM_percent + BM_aboveground + BM_belowground +
+                 N_dep_1993 + MiddleClimate + Ecosystem2 + bd_soilgrids + clay_soilgrids + soc_soilgrids + EVI_mean, 
+               data = allData,
+               # %>% sample_frac(frac_samp)
+               importance = TRUE, 
+               proximity = TRUE,
+               ntree = 200,
+               mtry = 4,
+               na.action = na.exclude) }  
+
+model()
+plot(model())
+importance(model())
+varImpPlot(model())
+```
+
+
+```{r RF diagnose, fig.width=8, fig.height=6}
+set.seed(20201007)
+rf <- randomForest(RC_annual ~ MAT + MAP +
+                     AM_percent + EM_percent + ER_percent + NM_percent + BM_aboveground + BM_belowground +
+                     N_dep_1993 + MiddleClimate + Ecosystem2 + bd_soilgrids + clay_soilgrids + soc_soilgrids + EVI_mean, 
+                   data = allData,
+                   # %>% sample_frac(frac_samp)
+                   importance = TRUE, 
+                   proximity = TRUE,
+                   ntree = 200,
+                   mtry = 4,
+                   na.action = na.exclude)
+
+varImpPlot(rf)
+
+# panel a
+qplot(1:200, rf$mse ) + geom_line() + theme_bw() +
+  xlab ("Number of trees (n)") + ylab("MSE") +
+  theme(axis.title.y = element_text(angle = 90, hjust = 0.5) ) ->
+  p_a
+
+
+# panel b
+tibble(x = c("ER%", "NM%", "EM%", "AM%", "Eco", "Climate", "BD", "SOC", "N dep", "BMa", "Clay%", "MAP", "MAT", "BMb", "EVI"),
+       y = sort(importance(rf, type = 1)[1:15])) %>% 
+  ggplot(aes(x = reorder(x, y), y)) +
+  geom_bar(stat = "identity", width = 0.75) +
+  coord_flip() +
+  ylab ("Change of MSE (%)") +
+  theme(axis.title.y = element_blank(),
+        panel.grid.minor = element_blank()) ->
+  rf_b
+
+# panel c
+tibble(x = c("ER%", "NM%", "EM%", "AM%", "Eco", "Climate", "N dep", "Clay%", "SOC", "BD", "BMb", "BMa", "MAT", "MAP", "EVI"),
+       y = sort(importance(rf, type = 2)[1:15])) %>% 
+  ggplot(aes(x = reorder(x, y), y)) +
+  geom_bar(stat = "identity", width = 0.75) +
+  coord_flip() +
+  ylab ("Change of node purity") +
+  theme(axis.title.y = element_blank(),
+        panel.grid.minor = element_blank()) ->
+  rf_c
+
+# panel_b <- plot_grid(rf_b, rf_c, ncol = 2,
+#                      # labels = c("b", "c"),
+#                      # hjust = c(-9.5, -9.5),
+#                      # vjust = 2.75,
+#                      rel_widths = c(1, 1))
+# 
+# print(plot_grid(rf_a, panel_b, nrow = 2, labels = c("a", "b")
+#                 , hjust = -1.5, vjust = 0.75) )
+
+p_a / (rf_b | rf_c) + plot_annotation(tag_levels = 'a')
+```
+
+
+## SRDB RC_annual prediction
+```{r SRDB RC_annual prediction check}
+## Investigate how well the model works at predicting training data RC
+# Use this model to predict RC values for the training data and put it all in one dataframe
+
+# Plot training data RC values and the predicted values from the model
+allData %>% 
+  mutate(prediction = predict(model()),
+         residuals = RC_annual - prediction) %>% 
+  ggplot(aes(y = RC_annual, x = prediction)) +
+  lims(x = c(0, 1)) +
+  geom_point() +
+  geom_smooth(method = "lm") +
+  geom_abline(intercept = 0, slope = 1, linetype = "dashed", size = 1, color = "red")
+
+allData %>% 
+  mutate(prediction = predict(model()),
+         residuals = RC_annual - prediction) %>%
+  ggplot(aes(x = prediction, y = residuals)) +
+  lims(x = c(0, 1)) +
+  geom_point() +
+  geom_abline(intercept = 0, slope = 0, linetype = "dashed", size = 1, color = "red")
+```
+
+
+An mtry of 10 seem the best the most often in this test.
+100 trees would probably be enough, but I will use 200 to be safe.
+To make my predictions more consistent, I will make 20 separate models, using these values for the number of trees and mtry, and average the outputs.
+```{r predict RC_annual of SRDB 20 times}
+## Make 20 RF models with the better settings and average their predictions
+tibble(pred_1 = predict(model(), allData),
+       pred_2 = predict(model(), allData),
+       pred_3 = predict(model(), allData),
+       pred_4 = predict(model(), allData),
+       pred_5 = predict(model(), allData),
+       pred_6 = predict(model(), allData),
+       pred_7 = predict(model(), allData),
+       pred_8 = predict(model(), allData),
+       pred_9 = predict(model(), allData),
+       pred_10 = predict(model(), allData),
+       pred_11 = predict(model(), allData),
+       pred_12 = predict(model(), allData),
+       pred_13 = predict(model(), allData),
+       pred_14 = predict(model(), allData),
+       pred_15 = predict(model(), allData),
+       pred_16 = predict(model(), allData),
+       pred_17 = predict(model(), allData),
+       pred_18 = predict(model(), allData),
+       pred_19 = predict(model(), allData),
+       pred_20 = predict(model(), allData) ) ->
+  RC_predict
+
+RC_predict$RC_predict <- apply(RC_predict, 1, mean)  # applies function 'mean' to 1st dimension (rows)
+```
+
+
+## Global RC_annual prediction
+```{r Predict global RC_annual}
+# Predict global RC_annual
+tibble(pred_1 = predict(model(), globalData),
+       pred_2 = predict(model(), globalData),
+       pred_3 = predict(model(), globalData),
+       pred_4 = predict(model(), globalData),
+       pred_5 = predict(model(), globalData),
+       pred_6 = predict(model(), globalData),
+       pred_7 = predict(model(), globalData),
+       pred_8 = predict(model(), globalData),
+       pred_9 = predict(model(), globalData),
+       pred_10 = predict(model(), globalData),
+       pred_11 = predict(model(), globalData),
+       pred_12 = predict(model(), globalData),
+       pred_13 = predict(model(), globalData),
+       pred_14 = predict(model(), globalData),
+       pred_15 = predict(model(), globalData),
+       pred_16 = predict(model(), globalData),
+       pred_17 = predict(model(), globalData),
+       pred_18 = predict(model(), globalData),
+       pred_19 = predict(model(), globalData),
+       pred_20 = predict(model(), globalData) ) ->
+  RC_predict_global
+
+RC_predict_global$RC_predict <- apply(RC_predict_global, 1, mean)  # applies function 'mean' to 1st dimension (rows)
+
+
+# Make the default theme have a centered title
+theme_update(plot.title = element_text(hjust = 0.5))
+
+# Plot predictions globally
+cbind(globalData, RC_predict_global %>% dplyr::select(RC_predict)) %>% 
+  ggplot(aes(Longitude, Latitude, color = RC_predict)) + 
+  geom_point(size = 0.3) +
+  lims(x = c(-180, 180), y = c(-60, 90)) +
+  labs(color = "RC prediction") +
+  scale_color_viridis_c()
+
+# Look at the distribution of predictions
+cbind(globalData, RC_predict_global %>% dplyr::select(RC_predict)) %>% 
+  ggplot(aes(x = RC_predict)) +
+  geom_histogram(color = "black", fill = "lightgrey") +
+  labs(x = "RC Prediction")
+
+# outputs RC_prediction
+writ_file(cbind(globalData, RC_predict_global) %>%
+            dplyr::select(Latitude, Longitude, RC_predict),
+          "Global_RC_annual_prediction.csv")
+```
+
+
+```{r check N_dep}
+ggplot(globalData, aes(Longitude, Latitude, color = EVI_mean)) + 
+  geom_point(size = 0.3) +
+  lims(x = c(-180, 180), y = c(-90, 90)) +
+  labs(color = "RC prediction") +
+  scale_color_viridis_c()
+
+# N_dep_1993
+
+# MAT + MAP + AM_percent + EM_percent + ER_percent + NM_percent + BM_aboveground + BM_belowground +
+#   N_dep_1993 + MiddleClimate + Ecosystem2 + bd_soilgrids + clay_soilgrids + soc_soilgrids + EVI_mean
+```
+
+
+```{r predict srdb RC_annual}
+allData = srdb_all %>% na.omit()
+cbind(allData, RC_predict %>% dplyr::select(RC_predict)) %>% 
+  mutate(reside = RC_annual - RC_predict) ->
+  allData
+
+allData %>% 
+  ggplot(aes(y = RC_annual, x = RC_predict)) +
+  lims(x = c(0, 1)) +
+  geom_point(alpha = 0.5) +
+  geom_smooth(method = "lm") +
+  geom_abline(intercept = 0, slope = 1, linetype = "dashed", size = 1, color = "red") +
+  labs(y = expression(Measured~RC~annual),
+       x = expression(Predicted~RC~annual)) +
+  annotate("text", x = 0.1, y = 0.9, label = "italic(R) ^ 2 == 0.80", parse = TRUE) +
+  scale_y_continuous(position = "left") ->
+  srdb_pred_vs_measure
+
+allData %>% 
+  ggplot(aes(x = RC_predict, y = reside)) +
+  lims(x = c(0, 1)) +
+  geom_point(alpha = 0.5) +
+  geom_abline(intercept = 0, slope = 0, linetype = "dashed", size = 1, color = "red")
+
+lm(RC_annual ~ RC_predict, data = allData) %>% summary()
+```
+
+
+```{r RC_annual vs RC_prediction global, fig.width=8, fig.height=7}
+globalData$RC_annual <- RC_predict_global$RC_predict
+
+bind_rows(
+  globalData %>% 
+    mutate(Type = "I") %>% 
+    dplyr::select(RC_annual, Type),
+  
+  allData %>% 
+    mutate(Type = "III") %>% 
+    dplyr::select(RC_annual, Type),
+  
+  allData %>% 
+    mutate(Type = "II") %>% 
+    dplyr::select(RC_predict, Type) %>% 
+    dplyr::rename(RC_annual = RC_predict)
+  ) %>% 
+  ggplot(aes(RC_annual, Type, fill = 0.5 - abs(0.5 - stat(ecdf)))) +
+  stat_density_ridges(geom = "density_ridges_gradient", calc_ecdf = TRUE) +
+  scale_fill_viridis_c(name = "Probability", direction = -1) +
+  xlab(expression(RC~Annual)) +
+  ylab(element_blank()) +
+  theme(axis.text.y = element_text(angle = 0)) +
+  scale_y_discrete(labels= c("III", "II", "I"),
+                   position = "left") ->
+  overall_comparisom
+
+globalData$RC_annual %>% min()
+globalData$RC_annual %>% max()
+globalData$RC_annual %>% mean()
+
+allData$RC_annual %>% min()
+allData$RC_annual %>% max()
+allData$RC_annual %>% mean()
+
+srdb_pred_vs_measure / overall_comparisom +  plot_annotation(tag_levels = 'a')
+```
+
+```{r}
+# do local corelation and get coefficiency
+corLocal(x, y, ngb=5, 
+     method=c("pearson", "kendall", "spearman"), test=FALSE, filename='', ...)
+```
+
+

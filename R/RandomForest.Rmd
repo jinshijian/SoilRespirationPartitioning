@@ -149,6 +149,7 @@ set.seed(191982)
 # Add the absolute value of latitude to the dataset
 absLat = abs(allData$Latitude)
 allData = cbind(allData, absLat)
+allData$MiddleClimate <- as.factor(allData$MiddleClimate)
 
 # Make sure there is no missing data
 allData = allData[!is.na(allData$RC_annual) & !is.na(allData$absLat) &

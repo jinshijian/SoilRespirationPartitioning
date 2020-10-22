@@ -286,7 +286,7 @@ globalData %>%
 # Get rid of redundant/unhelpful data
   dplyr::select(-IGBP, -Ecosystem, -ClimateTypes, -barren_yn) %>% 
 # Rename warner_rs variable to Rs_warner to fit with the other variables
-  rename(Rs_warner = warner_rs) -> 
+  dplyr::rename(Rs_warner = warner_rs) -> 
   globalData
 ```
 

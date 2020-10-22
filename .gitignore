@@ -56,3 +56,9 @@ wc10/*
 # Cashed R data
 *_cache
 *_files
+
+# TangCode
+/Tang_Code
+
+# MisCell
+MisCell.R
