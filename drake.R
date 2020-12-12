@@ -20,7 +20,8 @@ plan <- drake::drake_plan(
            RC_annual3 = (Rs_annual - Rh_annual) / Rs_annual) %>% 
     mutate(RC_annual = coalesce(RC_annual, RC_annual2, RC_annual3)) %>% 
     dplyr::select(Site_ID, Latitude, Longitude, Leaf_habit, MAT, MAP, 
-                  Rs_annual, Rh_annual, RC_annual, Manipulation),
+                  Rs_annual, Rh_annual, RC_annual, Manipulation,
+                  Partition_method) ,
     # filter(RC_annual >= 0, RC_annual <= 1, Manipulation == "None"
     #        !is.na(Site_ID), !is.na(Latitude), !is.na(Longitude),
     #        !is.na(Leaf_habit), !is.na(Rs_annual), !is.na(Rh_annual)
@@ -100,6 +101,12 @@ plan <- drake::drake_plan(
   # Remove values where::here there::here are no biomass data
   
   ## Extracts N deposition data for each srdb point
+  #  https://www.isimip.org/gettingstarted/availability-input-data-isimip2b/
+  N_dep_half_deg = raster(here::here("Data", "global_mean_Nitrogen_depostion_1980_2017_half_degree.tif")) %>% 
+    raster::extract(srdb %>% dplyr::select(Longitude, Latitude)),
+  
+  N_dep_half_deg_global = raster(here::here("Data", "global_mean_Nitrogen_depostion_1980_2017_half_degree.tif")) %>% 
+    raster::extract(IGBP_Koppen_MODIS %>% dplyr::select(Longitude, Latitude)),
   
   # Pull N-dep values for every coordinate pair in the SRDB
   N_dep_1993 = raster(here::here("Data", "sdat_830_2_20200721_153826639.asc")) %>%
@@ -108,8 +115,16 @@ plan <- drake::drake_plan(
   N_dep_1993_global = raster(here::here("Data", "sdat_830_2_20200721_153826639.asc")) %>%
     raster::extract(IGBP_Koppen_MODIS %>% dplyr::select(Longitude, Latitude)),
   
+  ## Extracts GPP from FLUXCOM
+  gpp_fluxcom = raster(here::here("Data", "fluxcom_gpp2.tif")) %>% 
+    raster::extract(srdb %>% dplyr::select(Longitude, Latitude )),
+  
+  gpp_fluxcom_global = raster(here::here("Data", "fluxcom_gpp2.tif")) %>% 
+    raster::extract(IGBP_Koppen_MODIS %>% dplyr::select(Longitude, Latitude)),
+  
   # Add this to the data pool and remove entries without N-dep data
-  srdb_NDep = cbind(srdb, MAP_WC, MAT_WC, AM_percent, EM_percent, ER_percent, NM_percent, BM_aboveground, BM_belowground, N_dep_1993),
+  srdb_NDep = cbind(srdb, MAP_WC, MAT_WC, AM_percent, EM_percent, ER_percent, NM_percent, BM_aboveground, BM_belowground,
+                    N_dep_1993, N_dep_half_deg, gpp_fluxcom),
   
   # Change Latitude and Longitude to the same 0.5*0.5 resolution as in the dataset
   srdb_IGBP = srdb_NDep %>% 
@@ -151,13 +166,14 @@ plan <- drake::drake_plan(
   
   # prepare global 0.5*0.5 resolution data for global RC_prediction map
   globalData = cbind(IGBP_Koppen_MODIS, MAP_WC_global, MAT_WC_global, AM_percent_global, EM_percent_global, 
-                     ER_percent_global, NM_percent_global, BM_aboveground_global, BM_belowground_global, N_dep_1993_global, 
+                     ER_percent_global, NM_percent_global, BM_aboveground_global, BM_belowground_global,
+                     N_dep_1993_global, N_dep_half_deg_global, gpp_fluxcom_global,
                      bd_soilgrids_global, clay_soilgrids_global, soc_soilgrids_global, EVI_mean_global) %>% 
     dplyr::rename(MAT = MAT_WC_global, MAP = MAP_WC_global,
                   AM_percent = AM_percent_global, EM_percent = EM_percent_global,
                   ER_percent = ER_percent_global, NM_percent = NM_percent_global, 
                   BM_aboveground = BM_aboveground_global, BM_belowground = BM_belowground_global,
-                  N_dep_1993 = N_dep_1993_global,
+                  N_dep_1993 = N_dep_1993_global, N_dep_half_deg = N_dep_half_deg_global, gpp_fluxcom = gpp_fluxcom_global, 
                   bd_soilgrids = bd_soilgrids_global, clay_soilgrids = clay_soilgrids_global,
                   soc_soilgrids = soc_soilgrids_global,
                   EVI_mean = EVI_mean_global) %>% 

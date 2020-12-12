@@ -31,6 +31,7 @@ library(raster)
 library(randomForest)
 library(caret)
 library(e1071)
+library(car) # for unbalanced anova
 source("functions.R")
 ```
 
@@ -49,10 +50,14 @@ srdb_all[is.na(srdb_all$Ecosystem2),]$Ecosystem2 <- "Not reported"
 # Make sure there is no missing data
 allData = srdb_all %>% 
   dplyr::select(RC_annual, MAT, MAP, AM_percent, EM_percent, ER_percent, NM_percent,
-                BM_aboveground, BM_belowground, N_dep_1993,
-                # MiddleClimate,
+                BM_aboveground, BM_belowground, N_dep_half_deg, N_dep_1993,
+                MiddleClimate, gpp_fluxcom,
                 Ecosystem2, Latitude, Longitude,
-                bd_soilgrids, clay_soilgrids, soc_soilgrids, EVI_mean) %>% na.omit()
+                bd_soilgrids, clay_soilgrids, soc_soilgrids, EVI_mean,
+                Partition_method) %>% 
+  na.omit()
+
+allData$Ecosystem2 <- as.factor(allData$Ecosystem2)
   
 # Extract global climate space data
 map_mat_global <- drake::readd(map_mat_global)
@@ -72,6 +77,10 @@ srdb_all %>%
   filter(is.na(MAP))
 
 allData %>% dplyr::select(Ecosystem2) %>% unique()
+
+srdb_all %>% 
+  ggplot(aes(N_dep_1993, N_dep_half_deg)) + 
+  geom_point()
 ```
 
 
@@ -258,114 +267,92 @@ ggplot(srdb_all, aes(x = Leaf_habit, y = NM_percent, fill = Leaf_habit)) +
 ```
 
 
-```{r BD, SOC and clay vs RC_annual}
-srdb_all %>% ggplot(aes(x = MAT, y = RC_annual)) +
-  geom_point() +
-  geom_smooth(method = "lm") +
-  theme_minimal()
-
-srdb_all %>% ggplot(aes(x = MAP, y = RC_annual)) +
-  geom_point() +
-  geom_smooth(method = "lm") +
-  theme_minimal()
-
-srdb_all %>% ggplot(aes(x = bd_soilgrids, y = RC_annual)) +
-  geom_point() +
-  geom_smooth(method = "lm") +
-  theme_minimal()
-
-srdb_all %>% ggplot(aes(x = clay_soilgrids, y = RC_annual)) +
-  geom_point() +
-  geom_smooth(method = "lm") +
-  theme_minimal()
-
-srdb_all %>% ggplot(aes(x = soc_soilgrids, y = RC_annual)) +
-  geom_point() +
-  geom_smooth(method = "lm") +
-  theme_minimal()
-
-srdb_all %>% ggplot(aes(x = soc_soilgrids, y = Rs_annual)) +
-  geom_point() +
-  geom_smooth(method = "lm") +
-  theme_minimal()
-
-srdb_all %>% ggplot(aes(x = EVI_mean, y = Rs_annual)) +
-  geom_point() +
-  geom_smooth(method = "lm") +
-  theme_minimal()
-
-srdb_all %>% ggplot(aes(x = EVI_mean, y = RC_annual)) +
-  geom_point() +
-  geom_smooth(method = "lm") +
-  theme_minimal()
-```
-
-
 ## RF modelling
 ### Improving the model
 Here is a graph of the error vs the number of trees in the model and a graph of how the error varies with different values of mtry.
 mtry is a parameter for this random forest function that sets how many variables are tried when making each node of a regression tree.
 The number of trees and this mtry value are both input parameters used to produce the random forest model.
-```{r RF tune}
+```{r RF determine number of parameters}
 # Tune with different mtry values
-tuneRF(subset(allData, select = -c(RC_annual, Site_ID, Longitude, Latitude, Manipulation)), 
-       allData[, 6],
-       stepFactor = 2,
+tuneRF(subset(allData, select = c(MAT, MAP, AM_percent, EM_percent, ER_percent, NM_percent,
+                                   BM_aboveground, BM_belowground, N_dep_half_deg, bd_soilgrids, clay_soilgrids, soc_soilgrids, EVI_mean)),
+       allData$RC_annual,
+       stepFactor = 1.5,
        plot = TRUE,
        ntreetry = 200, # Based on the plot above, 200 trees seems reasonable
        trace = TRUE,
-       improve = .01)
+       improve = 1e-5)
 ```
 
 First, I will use the default settings in the randomForest package to make a random forest model to predict the root contribution to Rs (RC). 
 ```{r create RF model for prediction}
-# set.seed(191982)
+set.seed(20201007)
 ## Use random forest machine learning to create a model to predict Rs partitioning
 # Set seed to a specific value, for reproducability
 # Make a random forest model
-model <- function() {
-  randomForest(RC_annual ~ MAT + MAP +
-                 AM_percent + EM_percent + ER_percent + NM_percent + BM_aboveground + BM_belowground +
-                 N_dep_1993 + MiddleClimate + Ecosystem2 + bd_soilgrids + clay_soilgrids + soc_soilgrids + EVI_mean, 
-               data = allData,
-               # %>% sample_frac(frac_samp)
-               importance = TRUE, 
-               proximity = TRUE,
-               ntree = 200,
-               mtry = 4,
-               na.action = na.exclude) }  
-
-model()
-plot(model())
-importance(model())
-varImpPlot(model())
-```
-
-
-```{r RF diagnose, fig.width=8, fig.height=6}
-set.seed(20201007)
 rf <- randomForest(RC_annual ~ MAT + MAP +
                      AM_percent + EM_percent + ER_percent + NM_percent + BM_aboveground + BM_belowground +
-                     N_dep_1993 + MiddleClimate + Ecosystem2 + bd_soilgrids + clay_soilgrids + soc_soilgrids + EVI_mean, 
+                     N_dep_half_deg + bd_soilgrids + clay_soilgrids + soc_soilgrids + EVI_mean +
+                     MiddleClimate, 
                    data = allData,
                    # %>% sample_frac(frac_samp)
                    importance = TRUE, 
                    proximity = TRUE,
                    ntree = 200,
                    mtry = 4,
-                   na.action = na.exclude)
+                   na.action = na.exclude)   
 
+plot(rf)
+importance(rf)
 varImpPlot(rf)
+```
 
+## SRDB RC_annual prediction
+```{r SRDB RC_annual prediction check}
+## Investigate how well the model works at predicting training data RC
+# Use this model to predict RC values for the training data and put it all in one dataframe
+
+# Plot training data RC values and the predicted values from the model
+allData %>% 
+  mutate(prediction = predict(rf),
+         residuals = RC_annual - prediction) ->
+  allData
+
+md_lm <- lm(RC_annual ~ prediction, data = allData)
+summary(md_lm)$r.squared %>% round(2) -> r2
+
+allData %>% 
+  ggplot(aes(y = RC_annual, x = prediction)) +
+  lims(x = c(0, 1)) +
+  geom_point(alpha = 0.5) +
+  geom_smooth(method = "lm") +
+  geom_abline(intercept = 0, slope = 1, linetype = "dashed", size = 1, color = "red") +
+  labs(y = expression(Measured~R[root]~contribution~to~R[S]),
+       x = expression(Predicted~R[root]~contribution~to~R[S])) +
+  annotate("text", x = 0.1, y = 0.9, label = paste0("italic(R) ^ 2 == ", r2), parse = TRUE) +
+  scale_y_continuous(position = "left") ->
+  srdb_pred_vs_measure
+
+srdb_pred_vs_measure
+
+allData %>% 
+  ggplot(aes(x = prediction, y = residuals)) +
+  lims(x = c(0, 1)) +
+  geom_point(alpha = 0.5) +
+  geom_abline(intercept = 0, slope = 0, linetype = "dashed", size = 1, color = "red")
+
+```
+
+
+```{r RF diagnose, fig.width=8, fig.height=6}
 # panel a
 qplot(1:200, rf$mse ) + geom_line() + theme_bw() +
   xlab ("Number of trees (n)") + ylab("MSE") +
   theme(axis.title.y = element_text(angle = 90, hjust = 0.5) ) ->
   p_a
 
-
 # panel b
-tibble(x = c("ER%", "NM%", "EM%", "AM%", "Eco", "Climate", "BD", "SOC", "N dep", "BMa", "Clay%", "MAP", "MAT", "BMb", "EVI"),
+tibble(x = c("ER%", "NM%", "EM%", "Climate", "AM%", "BMa", "N dep", "Clay%", "MAT", "SOC", "BMb", "EVI", "BD", "MAP"),
        y = sort(importance(rf, type = 1)[1:15])) %>% 
   ggplot(aes(x = reorder(x, y), y)) +
   geom_bar(stat = "identity", width = 0.75) +
@@ -376,7 +363,7 @@ tibble(x = c("ER%", "NM%", "EM%", "AM%", "Eco", "Climate", "BD", "SOC", "N dep",
   rf_b
 
 # panel c
-tibble(x = c("ER%", "NM%", "EM%", "AM%", "Eco", "Climate", "N dep", "Clay%", "SOC", "BD", "BMb", "BMa", "MAT", "MAP", "EVI"),
+tibble(x = c("ER%", "NM%", "EM%", "Climate", "AM%", "Clay%", "N dep", "SOC", "BMb", "BMa", "MAT", "EVI", "BD", "MAP"),
        y = sort(importance(rf, type = 2)[1:15])) %>% 
   ggplot(aes(x = reorder(x, y), y)) +
   geom_bar(stat = "identity", width = 0.75) +
@@ -386,108 +373,25 @@ tibble(x = c("ER%", "NM%", "EM%", "AM%", "Eco", "Climate", "N dep", "Clay%", "SO
         panel.grid.minor = element_blank()) ->
   rf_c
 
-# panel_b <- plot_grid(rf_b, rf_c, ncol = 2,
-#                      # labels = c("b", "c"),
-#                      # hjust = c(-9.5, -9.5),
-#                      # vjust = 2.75,
-#                      rel_widths = c(1, 1))
-# 
-# print(plot_grid(rf_a, panel_b, nrow = 2, labels = c("a", "b")
-#                 , hjust = -1.5, vjust = 0.75) )
-
 p_a / (rf_b | rf_c) + plot_annotation(tag_levels = 'a')
-```
-
-
-## SRDB RC_annual prediction
-```{r SRDB RC_annual prediction check}
-## Investigate how well the model works at predicting training data RC
-# Use this model to predict RC values for the training data and put it all in one dataframe
-
-# Plot training data RC values and the predicted values from the model
-allData %>% 
-  mutate(prediction = predict(model()),
-         residuals = RC_annual - prediction) %>% 
-  ggplot(aes(y = RC_annual, x = prediction)) +
-  lims(x = c(0, 1)) +
-  geom_point() +
-  geom_smooth(method = "lm") +
-  geom_abline(intercept = 0, slope = 1, linetype = "dashed", size = 1, color = "red")
-
-allData %>% 
-  mutate(prediction = predict(model()),
-         residuals = RC_annual - prediction) %>%
-  ggplot(aes(x = prediction, y = residuals)) +
-  lims(x = c(0, 1)) +
-  geom_point() +
-  geom_abline(intercept = 0, slope = 0, linetype = "dashed", size = 1, color = "red")
-```
-
-
-An mtry of 10 seem the best the most often in this test.
-100 trees would probably be enough, but I will use 200 to be safe.
-To make my predictions more consistent, I will make 20 separate models, using these values for the number of trees and mtry, and average the outputs.
-```{r predict RC_annual of SRDB 20 times}
-## Make 20 RF models with the better settings and average their predictions
-tibble(pred_1 = predict(model(), allData),
-       pred_2 = predict(model(), allData),
-       pred_3 = predict(model(), allData),
-       pred_4 = predict(model(), allData),
-       pred_5 = predict(model(), allData),
-       pred_6 = predict(model(), allData),
-       pred_7 = predict(model(), allData),
-       pred_8 = predict(model(), allData),
-       pred_9 = predict(model(), allData),
-       pred_10 = predict(model(), allData),
-       pred_11 = predict(model(), allData),
-       pred_12 = predict(model(), allData),
-       pred_13 = predict(model(), allData),
-       pred_14 = predict(model(), allData),
-       pred_15 = predict(model(), allData),
-       pred_16 = predict(model(), allData),
-       pred_17 = predict(model(), allData),
-       pred_18 = predict(model(), allData),
-       pred_19 = predict(model(), allData),
-       pred_20 = predict(model(), allData) ) ->
-  RC_predict
-
-RC_predict$RC_predict <- apply(RC_predict, 1, mean)  # applies function 'mean' to 1st dimension (rows)
 ```
 
 
 ## Global RC_annual prediction
 ```{r Predict global RC_annual}
+levels(globalData$Ecosystem2)
+levels(allData$Ecosystem2)
+
+levels(globalData$MiddleClimate)
+levels(allData$MiddleClimate)
 # Predict global RC_annual
-tibble(pred_1 = predict(model(), globalData),
-       pred_2 = predict(model(), globalData),
-       pred_3 = predict(model(), globalData),
-       pred_4 = predict(model(), globalData),
-       pred_5 = predict(model(), globalData),
-       pred_6 = predict(model(), globalData),
-       pred_7 = predict(model(), globalData),
-       pred_8 = predict(model(), globalData),
-       pred_9 = predict(model(), globalData),
-       pred_10 = predict(model(), globalData),
-       pred_11 = predict(model(), globalData),
-       pred_12 = predict(model(), globalData),
-       pred_13 = predict(model(), globalData),
-       pred_14 = predict(model(), globalData),
-       pred_15 = predict(model(), globalData),
-       pred_16 = predict(model(), globalData),
-       pred_17 = predict(model(), globalData),
-       pred_18 = predict(model(), globalData),
-       pred_19 = predict(model(), globalData),
-       pred_20 = predict(model(), globalData) ) ->
-  RC_predict_global
-
-RC_predict_global$RC_predict <- apply(RC_predict_global, 1, mean)  # applies function 'mean' to 1st dimension (rows)
-
+globalData$RC_predict = predict(rf, globalData)
 
 # Make the default theme have a centered title
 theme_update(plot.title = element_text(hjust = 0.5))
 
 # Plot predictions globally
-cbind(globalData, RC_predict_global %>% dplyr::select(RC_predict)) %>% 
+globalData %>% 
   ggplot(aes(Longitude, Latitude, color = RC_predict)) + 
   geom_point(size = 0.3) +
   lims(x = c(-180, 180), y = c(-60, 90)) +
@@ -495,15 +399,27 @@ cbind(globalData, RC_predict_global %>% dplyr::select(RC_predict)) %>%
   scale_color_viridis_c()
 
 # Look at the distribution of predictions
-cbind(globalData, RC_predict_global %>% dplyr::select(RC_predict)) %>% 
+globalData %>% 
   ggplot(aes(x = RC_predict)) +
   geom_histogram(color = "black", fill = "lightgrey") +
   labs(x = "RC Prediction")
 
+# get all prediction and calculate confidence interval
+all_trees_pred <- predict(rf, globalData, predict.all=TRUE)
+all_trees_RC <- all_trees_pred$individual
+globalData$rc_sd <- apply(all_trees_RC, 1, sd)
+globalData$rc_cv <- round(globalData$rc_sd/globalData$RC_predict *100, 2)
+
 # outputs RC_prediction
-writ_file(cbind(globalData, RC_predict_global) %>%
-            dplyr::select(Latitude, Longitude, RC_predict),
+writ_file(globalData %>%
+            dplyr::select(Latitude, Longitude, RC_predict, rc_sd, rc_cv),
           "Global_RC_annual_prediction.csv")
+
+writ_file(globalData,
+          "Global_RC_annual_prediction2.csv")
+
+globalData$RC_annual %>% mean()
+globalData$RC_annual %>% sd()
 ```
 
 
@@ -514,65 +430,32 @@ ggplot(globalData, aes(Longitude, Latitude, color = EVI_mean)) +
   labs(color = "RC prediction") +
   scale_color_viridis_c()
 
-# N_dep_1993
+# N_dep_half_deg
 
 # MAT + MAP + AM_percent + EM_percent + ER_percent + NM_percent + BM_aboveground + BM_belowground +
-#   N_dep_1993 + MiddleClimate + Ecosystem2 + bd_soilgrids + clay_soilgrids + soc_soilgrids + EVI_mean
+#   N_dep_half_deg + MiddleClimate + Ecosystem2 + bd_soilgrids + clay_soilgrids + soc_soilgrids + EVI_mean
 ```
 
-
-```{r predict srdb RC_annual}
-allData = srdb_all %>% na.omit()
-cbind(allData, RC_predict %>% dplyr::select(RC_predict)) %>% 
-  mutate(reside = RC_annual - RC_predict) ->
-  allData
-
-allData %>% 
-  ggplot(aes(y = RC_annual, x = RC_predict)) +
-  lims(x = c(0, 1)) +
-  geom_point(alpha = 0.5) +
-  geom_smooth(method = "lm") +
-  geom_abline(intercept = 0, slope = 1, linetype = "dashed", size = 1, color = "red") +
-  labs(y = expression(Measured~RC~annual),
-       x = expression(Predicted~RC~annual)) +
-  annotate("text", x = 0.1, y = 0.9, label = "italic(R) ^ 2 == 0.80", parse = TRUE) +
-  scale_y_continuous(position = "left") ->
-  srdb_pred_vs_measure
-
-allData %>% 
-  ggplot(aes(x = RC_predict, y = reside)) +
-  lims(x = c(0, 1)) +
-  geom_point(alpha = 0.5) +
-  geom_abline(intercept = 0, slope = 0, linetype = "dashed", size = 1, color = "red")
-
-lm(RC_annual ~ RC_predict, data = allData) %>% summary()
-```
 
 
 ```{r RC_annual vs RC_prediction global, fig.width=8, fig.height=7}
-globalData$RC_annual <- RC_predict_global$RC_predict
+globalData$RC_annual <- globalData$RC_predict
 
 bind_rows(
   globalData %>% 
-    mutate(Type = "I") %>% 
+    mutate(Type = "Global") %>% 
     dplyr::select(RC_annual, Type),
   
   allData %>% 
-    mutate(Type = "III") %>% 
-    dplyr::select(RC_annual, Type),
-  
-  allData %>% 
-    mutate(Type = "II") %>% 
-    dplyr::select(RC_predict, Type) %>% 
-    dplyr::rename(RC_annual = RC_predict)
-  ) %>% 
+    mutate(Type = "SRDB") %>% 
+    dplyr::select(RC_annual, Type)  ) %>% 
   ggplot(aes(RC_annual, Type, fill = 0.5 - abs(0.5 - stat(ecdf)))) +
   stat_density_ridges(geom = "density_ridges_gradient", calc_ecdf = TRUE) +
   scale_fill_viridis_c(name = "Probability", direction = -1) +
-  xlab(expression(RC~Annual)) +
+  xlab(expression(R[root]~contribution~to~R[S])) +
   ylab(element_blank()) +
   theme(axis.text.y = element_text(angle = 0)) +
-  scale_y_discrete(labels= c("III", "II", "I"),
+  scale_y_discrete(labels= c("Global", "SRDB"),
                    position = "left") ->
   overall_comparisom
 
@@ -589,8 +472,475 @@ srdb_pred_vs_measure / overall_comparisom +  plot_annotation(tag_levels = 'a')
 
 ```{r}
 # do local corelation and get coefficiency
-corLocal(x, y, ngb=5, 
-     method=c("pearson", "kendall", "spearman"), test=FALSE, filename='', ...)
+# corLocal(x, y, ngb=5, 
+#      method=c("pearson", "kendall", "spearman"), test=FALSE, filename='', ...)
+```
+
+
+## SI
+```{r Figure S1, fig.height=8, fig.width=6}
+# Unbalanced ANOVA
+allData$Partition_method %>% unique()
+allData %>% 
+  mutate(Partition_group = case_when(
+    Partition_method %in% c("Comparison", "Exclusion", "Girdling") ~ "Exclusion",
+    Partition_method %in% c("Isotope") ~ "Isotope",
+    Partition_method %in% c("Extraction") ~ "Physical seperation",
+    Partition_method %in% c("Model", "TBCA", "Subtraction") ~ "Component",
+    TRUE ~ "Other")) ->
+  allData
+
+allData %>% 
+  count(Partition_group)
+
+Anova(lm(RC_annual ~ Partition_group, data = allData), type="III") -> anov_partition
+summary(anov_partition)
+Anova(lm(RC_annual ~ MiddleClimate, data = allData), type="III") -> anov_climate
+summary(anov_climate)
+
+allData %>% 
+  dplyr::select(RC_annual, Partition_group) %>% 
+  na.omit() %>% 
+  filter(RC_annual <= 1 & RC_annual >= 0) %>% 
+  # filter(Partition_method %!in% c("", "Other", "Girdling", "TBCA")) %>% #filter those out (not too much data)
+  ggplot(aes(Partition_group, RC_annual, fill = Partition_group)) +
+  geom_violin(draw_quantiles = c(.25, 0.5, .75)) +
+  theme(legend.position = "none",
+        # axis.title.x = element_blank(),
+        axis.text.x = element_text(angle = 0, vjust = .5)) +
+  scale_x_discrete(breaks = c("Component", "Exclusion", "Isotope", "Physical seperation", "Other"),
+                   labels = c("Component", "Exclusion", "Isotope", "Physical seperation", "Other") ) +
+  labs(y = expression(R[root]~Contribution~to~R[S]),
+       x = " ") -> plot1
+
+allData %>% 
+  filter(!is.na(MiddleClimate)) %>%
+  ggplot(aes(x = MiddleClimate, y = RC_annual, fill = MiddleClimate)) +
+  geom_violin(draw_quantiles = c(.25, .5, .75)) +
+  theme(legend.position = "none",
+        axis.text.x = element_text(angle = 15, vjust = .5)) +
+  scale_x_discrete(labels = c("Tropic", "Arid", "Temperate humid", "Temperate summer dry", "Temperate winter dry", 
+                              "Boreal humid", "Boreal dry", "Arctic")) +
+  labs(y = expression(R[root]~Contribution~to~R[S]),
+       x = element_blank()) -> plot2
+
+plot1 / plot2
+```
+
+# test factors affect RC
+```{r RC vs Rs_annual}
+# load Bond-Lamberty 2004 data
+bond2004 <- read_file('2004_paper_data.csv')
+# RC model
+allData2 = srdb_all %>% 
+  dplyr::select(Rs_annual, RC_annual, MAT, MAP, AM_percent, EM_percent, ER_percent, NM_percent,
+                BM_aboveground, BM_belowground, N_dep_half_deg, N_dep_1993,
+                MiddleClimate, gpp_fluxcom,
+                Ecosystem2, Latitude, Longitude,
+                bd_soilgrids, clay_soilgrids, soc_soilgrids, EVI_mean,
+                Partition_method) %>% 
+  na.omit()
+
+RC_v5_mod <- lm(RC_annual ~ log(Rs_annual), data = allData2)
+RC_v5_mod2 <- lm(RC_annual ~ log(Rs_annual), data = allData2 %>% filter(Rs_annual < 2500))
+summary(RC_v5_mod)
+summary(RC_v5_mod2)
+
+bind_rows(
+  allData2 %>% 
+    dplyr::select(Rs_annual, RC_annual) %>% 
+    mutate(Source = "SRDB-V5"),
+  
+  bond2004 %>% 
+    dplyr::select(Rs, RC) %>% 
+    rename(Rs_annual = Rs, RC_annual = RC) %>% 
+    mutate(Source = "Old")) ->
+  allData3
+
+allData3 %>% 
+  ggplot(aes(Rs_annual, RC_annual, col = Source)) +
+  geom_point(alpha = 0.5) +
+  geom_point(aes(Rs, RC), data = bond2004, col = "blue") +
+  # ggtitle(expression("RC=-0.07+0.08ln(Rs), R"^2*"=0.02, n=478")) +
+  stat_function(fun = function(x) { -0.66 + 0.16*log(x) }, col = 'blue', size = 1.5) +
+  stat_function(fun = function(x) { 0.155 + 0.03876*log(x) }, col = 'black', size = 1.5) +
+  stat_function(fun = function(x) { 0.082 + 0.05*log(x) }, col = 'gray', size = 1.5) +
+  labs(x = element_blank(), 
+       y = expression(R[root]~contribution~to~R[S]~(RC))) +
+  scale_color_manual(name = "Data",
+                     values = c("blue", "black"),
+                     breaks = c("Old", "SRDB-V5"),
+                     labels = c("Old", "New")) +
+  geom_segment(aes(x = 2500, y = 0.95, xend = 2500, yend = 0.65),
+               arrow = arrow(length = unit(0.25, "cm")),
+               size = 0.5,
+               col = "blue") +
+  geom_segment(aes(x = 2500, y = 0.125, xend = 2500, yend = 0.43),
+               arrow = arrow(length = unit(0.25, "cm")),
+               size = 0.5,
+               col = "black") +
+  annotate("text", x = 2600, y = 0.95, label = paste0("RC = -0.66 + 0.16 ln(Rs)"), col = "blue", hjust = 0) +
+  annotate("text", x = 2600, y = 0.85, label = paste0("italic(R) ^ 2 == 0.38 (n == 63)"), parse = TRUE, col = "blue", hjust = 0) +
+  annotate(geom="text", x=2600, y=0.75, label="Bond-Lamberty (2004)", color="blue", hjust = 0) +
+  
+  annotate("text", x = 2600, y = 0.35, label = paste0("RC = 0.16 + 0.04 ln(Rs)"), col = "black", hjust = 0) +
+  annotate("text", x = 2600, y = 0.25, label = paste0("italic(R) ^ 2 == 0.02 ", " (n == 861)"), parse = TRUE, col = "black", hjust = 0) +
+  annotate(geom="text", x=2600, y=0.15, label="This study", color="black", hjust = 0) -> 
+  factor_test1
+
+factor_test1
+
+```
+
+
+```{r}
+allData2 %>% 
+  mutate(Partition_group = case_when(
+    Partition_method %in% c("Comparison", "Exclusion", "Girdling") ~ "Exclusion",
+    Partition_method %in% c("Isotope") ~ "Isotope",
+    Partition_method %in% c("Extraction") ~ "Physical seperation",
+    Partition_method %in% c("Model", "TBCA", "Subtraction") ~ "Component",
+    TRUE ~ "Other")) ->
+  allData2
+
+allData2 %>% 
+  dplyr::select(RC_annual, Rs_annual, Partition_group) %>% 
+  group_by(Partition_group) %>% 
+  summarise(RC_mean = mean(RC_annual), Rs_mean = mean(Rs_annual),
+            RC_sd = sd(RC_annual), Rs_sd = sd(Rs_annual), obs = n()) %>% 
+  ggplot(aes(Rs_mean, RC_mean, col = Partition_group)) +
+  geom_point(alpha = 1, aes(size = obs), show.legend = FALSE) +
+  geom_errorbar(aes(ymin = RC_mean - RC_sd, ymax = RC_mean + RC_sd)) +
+  # stat_function(fun = function(x) { 0.082 + 0.05*log(x) }, col = 'pink', size = 1.5) +
+  # geom_smooth(method = "lm", col = "black", se = FALSE) +
+  scale_color_discrete (name = "Partition") +
+  labs(x = element_blank(),
+       y = element_blank()) ->
+  factor_test2
+  # + geom_errorbarh(aes(xmin = Rs_mean - Rs_sd, xmax = Rs_mean + Rs_sd)) 
+
+allData2 %>% 
+  dplyr::select(RC_annual, Rs_annual, Partition_group) %>% 
+  group_by(Partition_group) %>% 
+  summarise(RC_mean = mean(RC_annual), Rs_mean = mean(Rs_annual),
+            RC_sd = sd(RC_annual), Rs_sd = sd(Rs_annual), obs = n()) -> partition_test
+lm(RC_mean ~ Rs_mean, data = partition_test) %>% summary()
+
+# test climate
+allData2 %>% 
+  dplyr::select(RC_annual, Rs_annual, MiddleClimate) %>% 
+  group_by(MiddleClimate) %>% 
+  summarise(RC_mean = mean(RC_annual), Rs_mean = mean(Rs_annual),
+            RC_sd = sd(RC_annual), Rs_sd = sd(Rs_annual), obs = n()) %>% 
+  ggplot(aes(Rs_mean, RC_mean, col = MiddleClimate)) +
+  geom_point(alpha = 1, aes(size = obs), show.legend = FALSE) +
+  geom_errorbar(aes(ymin = RC_mean - RC_sd, ymax = RC_mean + RC_sd)) +
+  # stat_function(fun = function(x) { 0.082 + 0.05*log(x) }, col = 'pink', size = 1.5) +
+  # geom_smooth(method = "lm", col = "black", se = FALSE) +
+  scale_color_discrete (name = "Climate") +
+  labs(x = expression(Annual~R[S]~(g~C~m^{-2}~yr^{-1})),
+       y = expression(R[root]~contribution~to~R[S]~(RC))) ->
+  factor_test3
+
+# test climate with tropical removed
+allData2 %>% 
+  dplyr::select(RC_annual, Rs_annual, MiddleClimate) %>% 
+  filter(MiddleClimate %!in% c("A")) %>% 
+  group_by(MiddleClimate) %>% 
+  summarise(RC_mean = mean(RC_annual), Rs_mean = mean(Rs_annual),
+            RC_sd = sd(RC_annual), Rs_sd = sd(Rs_annual), obs = n()) %>% 
+  ggplot(aes(Rs_mean, RC_mean)) +
+  geom_point(alpha = 1, aes(size = obs, col = MiddleClimate)) +
+  geom_errorbar(aes(ymin = RC_mean - RC_sd, ymax = RC_mean + RC_sd)) +
+  # stat_function(fun = function(x) { 0.082 + 0.05*log(x) }, col = 'pink', size = 1.5) +
+  # geom_smooth(method = "lm", col = "black", se = FALSE) +
+  scale_color_discrete (name = "Climate") +
+  labs(x = expression(Annual~R[S]~(g~C~m^{-2}~yr^{-1})),
+       y = expression(R[root]~contribution~to~R[S]~(RC)))
+
+# test ecosystem
+Anova(lm(RC_annual ~ Ecosystem2, data = allData2), type="III") 
+allData2 %>% 
+  dplyr::select(RC_annual, Rs_annual, Ecosystem2) %>% 
+  filter(Ecosystem2 %!in% c("A")) %>% 
+  group_by(Ecosystem2) %>% 
+  summarise(RC_mean = mean(RC_annual), Rs_mean = mean(Rs_annual),
+            RC_sd = sd(RC_annual), Rs_sd = sd(Rs_annual), obs = n()) %>% 
+  ggplot(aes(Rs_mean, RC_mean, col = Ecosystem2)) +
+  geom_point(alpha = 1, aes(size = obs), show.legend = FALSE) +
+  geom_errorbar(aes(ymin = RC_mean - RC_sd, ymax = RC_mean + RC_sd)) +
+  # stat_function(fun = function(x) { 0.082 + 0.05*log(x) }, col = 'pink', size = 1.5) +
+  # geom_smooth(method = "lm", col = "black", se = FALSE) +
+  scale_color_discrete (name = "Ecosystem") +
+  labs(x = expression(Annual~R[S]~(g~C~m^{-2}~yr^{-1})),
+       y = element_blank()) ->
+  factor_test4
+```
+
+```{r,  fig.width=12, fig.height=6}
+(factor_test1 | factor_test2) / (factor_test3 | factor_test4) +
+  plot_annotation(tag_levels = "a")
+```
+
+
+
+## Test the relationship between RC and environmental factors
+```{r function for factor testing}
+# https://community.rstudio.com/t/passing-df-column-name-to-function/37293/3
+lm_climate_factor <- function(col_name){
+  subset(allData, MiddleClimate == var_eco[i]) %>% 
+    dplyr::select(RC_annual, {{col_name}}, MiddleClimate) ->
+    sub_data
+  
+  colnames(sub_data) <- c("RC_annual", "Factor", "Climate")
+   
+  sub_data %>% group_by(Climate, Factor) %>%
+    summarise(RC_annual = mean(RC_annual), obs = n()) ->
+    sub_data
+  
+  # return(sub_data)
+  lm(RC_annual ~ Factor, data = sub_data) -> lm_model
+  
+  tibble(Factor = col_name,
+         Climate = sub_data$Climate[1],
+         obs = nrow(sub_data),
+         R2 = summary(lm_model)$r.squared,
+         Intercept = summary(lm_model)$coefficients[1,1] %>% round(6),
+         Slope = summary(lm_model)$coefficients[2,1] %>% round(6),
+         p_slope = summary(lm_model)$coefficients[2,4] %>% round(6)) ->
+    model_outputs
+  
+  return(model_outputs)
+}
+```
+
+### scatter plot
+```{r test environmental factor, fig.width=5, fig.height=9}
+# Figure S2
+# test factors by climate type
+var_eco <- sort(unique(allData$MiddleClimate))
+### test bd
+for(i in 1:8) {
+  lm_climate_factor("bd_soilgrids") %>% print()
+}
+allData %>% 
+  dplyr::select(RC_annual, bd_soilgrids, MiddleClimate) %>% 
+  group_by(MiddleClimate, bd_soilgrids) %>% 
+  summarise(RC_annual = mean(RC_annual), obs = n()) ->
+  sub_bd
+sub_bd %>% 
+  ggplot(aes(x = bd_soilgrids, y = RC_annual)) +
+  geom_point(aes(size = obs), shape = 16, alpha = 0.5) +
+  geom_smooth(data = sub_bd %>% filter(MiddleClimate %in% c("A")), method = "lm", fill = "skyblue") +
+  geom_smooth(data = sub_bd %>% filter(MiddleClimate %in% c("E")), method = "lm", fill = "pink", col = "red") +
+  labs(x = expression(Bulk~density~(g~cm^{-3})), 
+       y = expression(R[root]~contribution~to~R[S]~(RC))) +
+  theme(legend.position = "none") +
+  facet_grid(rows = vars(MiddleClimate)) ->
+  bd_panel
+
+sub_bd %>% 
+  ggplot(aes(x = bd_soilgrids, y = RC_annual)) +
+  geom_point(aes(size = obs), shape = 16, alpha = 0.5) +
+  # geom_smooth(data = sub_bd, method = "lm") +
+  labs(x = expression(Bulk~density~(g~cm^{-3})), 
+       y = expression(R[root]~contribution~to~R[S]~(RC))) +
+  theme(legend.position = "none") ->
+  bd_panel2
+
+### EVI
+for(i in 1:8) {
+  lm_climate_factor("EVI_mean") %>% print()
+}
+allData %>% 
+  dplyr::select(RC_annual, EVI_mean, MiddleClimate) %>% 
+  group_by(MiddleClimate, EVI_mean) %>% 
+  summarise(RC_annual = mean(RC_annual), obs = n()) ->
+  sub_evi
+sub_evi %>% 
+  ggplot(aes(x = EVI_mean, y = RC_annual)) +
+  geom_point(aes(size = obs), shape = 16, alpha = 0.5) +
+  # geom_smooth(method = "lm") +
+  labs(x = expression(EVI), 
+       y = element_blank()) +
+  theme(legend.position = "none",
+        axis.text.y=element_blank(),
+        axis.ticks.y=element_blank()) +
+  facet_grid(rows = vars(MiddleClimate)) ->
+  evi_panel
+
+sub_evi %>% 
+  ggplot(aes(x = EVI_mean, y = RC_annual)) +
+  geom_point(aes(size = obs), shape = 16, alpha = 0.5) +
+  # geom_smooth(method = "lm") +
+  labs(x = expression(EVI), 
+       y = element_blank()) +
+  theme(legend.position = "none",
+        axis.text.y=element_blank(),
+        axis.ticks.y=element_blank()) ->
+  evi_panel2
+
+### map
+for(i in 1:8) {
+  lm_climate_factor("MAP") %>% print()
+}
+allData %>% 
+  dplyr::select(RC_annual, MAP, MiddleClimate) %>% 
+  group_by(MiddleClimate, MAP) %>% 
+  summarise(RC_annual = mean(RC_annual), obs = n()) ->
+  sub_map
+sub_map %>% 
+  ggplot(aes(x = MAP, y = RC_annual)) +
+  geom_point(aes(size = obs), shape = 16, alpha = 0.5) +
+  geom_smooth(data = sub_map %>% filter(MiddleClimate %in% c("A")), method = "lm", fill = "skyblue") +
+  labs(x = expression(MAP~(mm)), 
+       y = element_blank()) +
+  theme(axis.text.y=element_blank(),
+        axis.ticks.y=element_blank()) +
+  facet_grid(rows = vars(MiddleClimate)) ->
+  map_panel
+
+sub_map %>% 
+  ggplot(aes(x = MAP, y = RC_annual)) +
+  geom_point(aes(size = obs), shape = 16, alpha = 0.5) +
+  # geom_smooth(data = sub_map, method = "lm") +
+  labs(x = expression(MAP~(mm)), 
+       y = element_blank()) +
+  theme(axis.text.y=element_blank(),
+        axis.ticks.y=element_blank()) ->
+  map_panel2
+
+# Figure S3
+### SOC
+for(i in 1:8) {
+  lm_climate_factor("soc_soilgrids") %>% print()
+}
+allData %>% 
+  dplyr::select(RC_annual, soc_soilgrids, MiddleClimate) %>% 
+  group_by(MiddleClimate, soc_soilgrids) %>% 
+  summarise(RC_annual = mean(RC_annual), obs = n()) ->
+  sub_soc
+sub_soc %>% 
+  ggplot(aes(x = soc_soilgrids, y = RC_annual)) +
+  geom_point(aes(size = obs), shape = 16, alpha = 0.5) +
+  geom_smooth(data = sub_soc %>% filter(MiddleClimate %in% c("B", "Df")), method = "lm", fill = "pink", col = "red") +
+  geom_smooth(data = sub_soc %>% filter(MiddleClimate %in% c("E")), method = "lm", fill = "skyblue") +
+  labs(x = expression(SOC~(Mg~C~ha^{-1})), 
+       y = expression(R[root]~contribution~to~R[S]~(RC))) +
+  theme(legend.position = "none") +
+  facet_grid(rows = vars(MiddleClimate)) ->
+  soc_panel
+
+sub_soc %>% 
+  ggplot(aes(x = soc_soilgrids, y = RC_annual)) +
+  geom_point(aes(size = obs), shape = 16, alpha = 0.5) +
+  # geom_smooth(data = sub_soc, method = "lm") +
+  labs(x = expression(SOC~(Mg~C~ha^{-1})), 
+       y = expression(R[root]~contribution~to~R[S]~(RC))) +
+  theme(legend.position = "none") ->
+  soc_panel2
+
+### mat
+for(i in 1:8) {
+  lm_climate_factor("MAT") %>% print()
+}
+allData %>% 
+  dplyr::select(RC_annual, MAT, MiddleClimate) %>% 
+  group_by(MiddleClimate, MAT) %>% 
+  summarise(RC_annual = mean(RC_annual), obs = n()) ->
+  sub_mat
+sub_mat %>% 
+  ggplot(aes(x = MAT, y = RC_annual)) +
+  geom_point(aes(size = obs), shape = 16, alpha = 0.5) +
+  # geom_smooth(method = "lm") +
+  labs(x = expression(MAT~(degree~C)), 
+       y = element_blank()) +
+  theme(legend.position = "none",
+        axis.text.y=element_blank(),
+        axis.ticks.y=element_blank()) +
+  facet_grid(rows = vars(MiddleClimate)) ->
+  mat_panel
+
+sub_mat %>% 
+  ggplot(aes(x = MAT, y = RC_annual)) +
+  geom_point(aes(size = obs), shape = 16, alpha = 0.5) +
+  # geom_smooth(method = "lm") +
+  labs(x = expression(MAT~(degree~C)), 
+       y = element_blank()) +
+  theme(legend.position = "none",
+        axis.text.y=element_blank(),
+        axis.ticks.y=element_blank()) ->
+  mat_panel2
+
+### BMb
+for(i in 1:8) {
+  lm_climate_factor("BM_belowground") %>% print()
+}
+allData %>% 
+  dplyr::select(RC_annual, BM_belowground, MiddleClimate) %>% 
+  group_by(MiddleClimate, BM_belowground) %>% 
+  summarise(RC_annual = mean(RC_annual), obs = n()) ->
+  sub_bmb
+sub_bmb %>% 
+  ggplot(aes(x = BM_belowground, y = RC_annual)) +
+  geom_point(aes(size = obs), shape = 16, alpha = 0.5) +
+  geom_smooth(data = sub_bmb %>% filter(MiddleClimate %in% c("E")), method = "lm", fill = "skyblue", col = "blue") +
+  labs(x = expression(Belowground~biomass~(Mg~C~ha^{-1})), 
+       y = element_blank()) +
+  theme(axis.text.y=element_blank(),
+        axis.ticks.y=element_blank()) +
+  facet_grid(rows = vars(MiddleClimate)) ->
+  bmb_panel
+
+sub_bmb %>% 
+  ggplot(aes(x = BM_belowground, y = RC_annual)) +
+  geom_point(aes(size = obs), shape = 16, alpha = 0.5) +
+  # geom_smooth(data = sub_bmb, method = "lm") +
+  labs(x = expression(Belowground~biomass~(Mg~C~ha^{-1})), 
+       y = element_blank()) +
+  theme(axis.text.y=element_blank(),
+        axis.ticks.y=element_blank()) ->
+  bmb_panel2
+```
+
+### output results
+```{r, fig.width=9, fig.height=9}
+bd_panel | evi_panel | map_panel
+soc_panel | mat_panel | bmb_panel
+```
+
+```{r}
+lm(RC_annual ~ bd_soilgrids, data = sub_bd) %>% summary()
+lm(RC_annual ~ EVI_mean, data = sub_evi) %>% summary()
+lm(RC_annual ~ MAP, data = sub_map) %>% summary()
+lm(RC_annual ~ soc_soilgrids, data = sub_soc) %>% summary()
+lm(RC_annual ~ MAT, data = sub_mat) %>% summary()
+lm(RC_annual ~ BM_belowground, data = sub_bmb) %>% summary()
+```
+
+### output results - all data
+```{r Factors testing, fig.width=8, fig.height=6}
+(bd_panel2 | evi_panel2 | map_panel2) /
+(soc_panel2 | mat_panel2 | bmb_panel2)
+```
+
+
+```{r}
+allData %>% ggplot(aes(x = gpp_fluxcom, y = RC_annual)) +
+  geom_point() +
+  geom_smooth(method = "lm") +
+  theme_minimal()
+
+allData %>% ggplot(aes(x = clay_soilgrids, y = RC_annual)) +
+  geom_point() +
+  geom_smooth(method = "lm") +
+  theme_minimal()
+
+lm(RC_annual ~ EVI_mean * MiddleClimate, data = allData) %>% summary()
+lm(RC_annual ~ bd_soilgrids * MiddleClimate, data = allData) %>% summary()
+lm(RC_annual ~ MAP * MiddleClimate, data = allData) %>% summary()
+lm(RC_annual ~ MAT * MiddleClimate, data = allData) %>% summary()
+lm(RC_annual ~ soc_soilgrids * MiddleClimate, data = allData) %>% summary()
 ```
 
 

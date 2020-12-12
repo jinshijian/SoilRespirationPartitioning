@@ -1,0 +1,68 @@
+Location,Biome,Type,Species,Soil,Habit,Stage,Method,Author,Year,Site,Age,MAT,MAP,Lat,NPP,ANPP,BNPP,NPPFR,Litter,TotDet,Rh,Rs,Ra,RC,Note
+Alaska,Arctic,Tundra,Mix,W,Decid,Mature,Extr,Billings,1978,Barrow,.,-12.6,132,71,91,47,44,.,.,.,13,53,40,0.75,Using Chapin NPP data
+Alaska,Arctic,Tundra,Mix,W,Decid,Mature,Sub,Chapin,1980,Barrow,.,-12.6,132,71,91,47,44,.,.,.,22,62,40,0.65,
+Missouri,Wtemp,Prairie,Mix,D,Decid,Aggrad,Isot,Buyanovsky,1987,Tucker,1,12.5,1000,39,450,215,235,235,193,428,374,516,142,0.28,Rs estimated from graph
+Missouri,Wtemp,Prairie,.,D,Decid,Mature,Extr,Herman,1977,Herman1,1,12.16666667,1000,39,.,.,.,.,.,.,299,452,153,0.34,
+Missouri,Wtemp,Prairie,Mix,D,Decid,Aggrad,Sub,Kucera,1971,Herman1,1,12.5,1000,39,.,.,.,.,.,.,271,452,181,0.40,
+California,Wtemp,Prairie,Various,D,Everg,Mature,Isot,Hungate,1997,Sandstone,1,14,511,37,.,.,.,.,.,145,144,323,179,0.55,grassland; methodology correct?
+Sweden,Boreal,Forest,Pinus sylvestris,D,Everg,Mature,Comp,Hogberg,2001,Hogberg1,50,5.5,.,64,.,.,.,.,.,.,127,275,149,0.54,
+Sweden,Boreal,Forest,Mixed boreal,D,Everg,Mature,Extr,Widén,2001,N,34,5.5,527,60,.,.,.,.,.,.,69,98,29,0.29,
+Sweden,Boreal,Forest,Mixed boreal,D,Everg,Mature,Extr,Widén,2001,SW,50,5.5,527,60,.,.,.,.,.,.,100,149,49,0.33,
+Sask,Boreal,Forest,Picea mariana,W,Everg,Mature,Excl,Kari,2003,BSSP,118,1.5,405,54,138,48,90,86,56,142,265,319,54,0.17,
+Sask,Boreal,Forest,Pop tremuloides,D,Decid,Mature,Sub,Russell,1998,SSA-OA,70,1.5,405,54,378,332,46,30,124,154,362,905,543,0.60,
+Sask,Boreal,Forest,Pop tremuloides,D,Decid,Mature,Extr,Ryan,1997,SSA-OA,67,1.5,405,54,378,332,46,30,124,154,591,905,314,0.35,Russell's Rs
+Sask,Boreal,Forest,Pinus banksiana,D,Everg,Mature,Extr,Ryan,1997,SSA-OJP,65,1.5,405,54,230,114,116,105,52,156,187,338,151,0.45,Striegl's Rs
+Sask,Boreal,Forest,Picea mariana,D,Everg,Mature,Excl,Kari,2003,SSA-OBS,118,1.5,405,54,400,155,245,118,56,174,440,564,124,0.22,
+Sask,Boreal,Forest,Picea mariana,D,Everg,Mature,Sub,Malhi,1999,SSA-OBS,116,1.5,405,54,140,110,30,118,56,174,449,592,143,0.24,
+Sask,Boreal,Forest,Picea mariana,D,Everg,Mature,Extr,Ryan,1997,SSA-OBS,115,1.5,405,54,400,155,245,118,56,174,372,564,192,0.34,Using Kari's Rs
+Manitoba,Boreal,Forest,Picea mariana,W,Everg,Aggrad,Excl,Us,2003,zW1998,3,0.8,450,55,74,68,6,4,0,4,205,206,1,0.00,
+Manitoba,Boreal,Forest,Picea mariana,D,Everg,Aggrad,Excl,Us,2003,zD1998,3,0.8,450,55,111,106,5,5,0,5,208,212,4,0.02,
+Manitoba,Boreal,Forest,Picea mariana,D,Decid,Aggrad,Excl,Us,2003,zD1995,6,0.8,450,56,189,184,5,20,2,22,128,181,53,0.29,
+Manitoba,Boreal,Forest,Mixed boreal,W,Everg,Aggrad,Excl,Us,2003,zW1964,37,0.8,450,55,429,380,49,20,5,25,425,491,67,0.14,
+Manitoba,Boreal,Forest,Picea mariana,D,Everg,Mature,Extr,Dioumaeva,2002,W1870,151,0.8,450,55,262,216,46,17,13,30,229,327,98,0.30,
+Manitoba,Boreal,Forest,Picea mariana,W,Everg,Mature,Excl,Us,2003,zW1870,151,0.8,450,55,262,216,46,17,13,30,306,327,20,0.06,
+Manitoba,Boreal,Forest,Mixed boreal,D,Decid,Aggrad,Excl,Us,2003,zD1989,12,0.8,450,55,367,354,12,13,18,30,240,489,249,0.51,
+Manitoba,Boreal,Forest,Mixed boreal,W,Mix,Aggrad,Excl,Us,2003,zW1981,20,0.8,450,55,584,556,28,27,6,33,375,550,175,0.32,
+Manitoba,Boreal,Forest,Picea mariana,W,Decid,Aggrad,Excl,Us,2003,zW1995,6,0.8,450,56,490,456,34,35,1,36,288,354,66,0.19,
+Manitoba,Boreal,Forest,Mixed boreal,W,Decid,Aggrad,Excl,Us,2003,zW1989,12,0.8,450,55,261,223,38,31,5,36,231,428,197,0.46,
+Manitoba,Boreal,Forest,Mixed boreal,D,Mix,Aggrad,Excl,Us,2003,zD1981,20,0.8,450,55,403,363,40,23,31,54,226,371,144,0.39,
+Manitoba,Boreal,Forest,Picea mariana,W,Everg,Mature,Excl,Us,2003,zW1930,71,0.8,450,55,326,233,93,42,20,62,285,311,26,0.08,
+Manitoba,Boreal,Forest,Mixed boreal,D,Everg,Aggrad,Excl,Us,2003,zD1964,37,0.8,450,55,432,377,55,36,31,67,365,458,93,0.20,
+Manitoba,Boreal,Forest,Picea mariana,D,Everg,Mature,Excl,Us,2003,NSA-OBS,151,0.8,450,55,211,147,64,75,34,108,293,330,38,0.11,
+Manitoba,Boreal,Forest,Picea mariana,D,Everg,Mature,Extr,Dioumaeva,2002,NSA-OBS,151,0.8,450,55,211,147,64,75,34,109,165,330,165,0.50,
+Manitoba,Boreal,Forest,Picea mariana,D,Everg,Mature,Excl,Us,2003,zD1930,71,0.8,450,55,362,203,159,79,60,138,425,496,71,0.14,
+Wisconsin,Ctemp,Forest,Red pine,D,Everg,Mature,Excl,Haynes,1995,Haynes1,31,4.166666667,586,45,.,.,.,216,136,351,496,858,362,0.42,
+Oregon,Ctemp,Forest,Ponderosa pine,D,Everg,Aggrad,Extr,Irvine,2002,Y,14,7.5,552,44,.,.,.,150,50,200,248,512,265,0.52,
+Oregon,Ctemp,Forest,Ponderosa pine,D,Everg,Mature,Extr,Irvine,2002,O,250,8.1,524,44,408,136,272,141,132,273,276,511,235,0.46,
+N. Zealand,Ctemp,Forest,Pinus radiata,D,Everg,Aggrad,Sub,Arneth,1998,Arneth1,8,10.8,658,-43,960,.,.,200,110,310,310,950,640,0.67,
+N. Zealand,Ctemp,Forest,Nothofagus,D,Decid,Mature,Extr,Tate,1993,Tate1,.,9.8,1520,-42,.,.,.,512,288,800,501,650,150,0.23,
+Mass,Ctemp,Forest,Mixed hardwood,D,Decid,Mature,Isot,Gaudinski,2000,Harvard,60,6,1172,43,.,.,.,415,363,779,570,840,270,0.32,
+Mass,Ctemp,Forest,Mixed hardwood,D,Decid,Mature,Excl,Bowden,1993,Harvard,60,6,1172,43,.,.,.,.,138,.,249,371,122,0.33,
+Germany,Ctemp,Forest,Picea abies,D,Everg,Mature,Excl,Buchmann,2000,Buchmann1,47,.,.,50,.,.,290,290,240,530,500,710,210,0.30,
+Germany,Ctemp,Forest,Alnus,W,Decid,Mature,Extr,Kutsch,2001,Kutsch1,45,7.7,.,54,.,.,.,.,.,.,520,1754,1234,0.70,
+England,Ctemp,Forest,Fagus,D,Decid,Mature,Sub,Phillipson,1975,Phillipson1,150,9.5,650,51,.,.,.,.,148,.,122,128,6,0.05,
+Brazil,Tropical,Forest,Various,D,Everg,Mature,Isot,Trumbore,1995,Trumbore1,.,26,1750,-3,.,.,.,280,450,730,890,2400,1510,0.63,
+Brazil,Tropical,Forest,Various,D,Everg,Mature,Sub,Malhi,1999,Malhi3,.,26,2200,-2,230,170,60,60,700,760,970,1650,680,0.41,
+Benin,Tropical,Forest,Oil palm,D,Everg,Mature,Extr,Lamade,1996,Ouidah,20,27,950,6,.,.,.,.,.,.,483,1610,1127,0.70,
+Tenn,Wtemp,Forest,Quercus,D,Decid,Mature,Sub,Malhi,1999,Malhi2,55,14,1400,36,189,150,39,39,360,399,359,753,395,0.52,
+Tenn,Wtemp,Forest,Liriodendron tulipifera,D,Decid,Mature,Extr,Edwards 1977,1977,Edwards1,50,13.3,1265,36,.,.,.,450,161,611,692,1065,373,0.35,Don't have both Edwards?
+N. Carolina,Wtemp,Forest,Pinus taeda,D,Everg,Aggrad,Isot,Andrews,1999,DukeFACE,15,15.5,1140,36,798,.,.,119,303,422,667,956,289,0.30,
+N. Carolina,Wtemp,Forest,Pinus taeda,D,Everg,Aggrad,Extr,Maier,2000,Maier1,11,17,1210,35,500,.,.,.,.,.,600,1263,663,0.52,
+Japan,Wtemp,Forest,Pinus densiflora,D,Everg,Mature,Comp,Nakane 1983,1983,Nakane1,80,15,1544,35,.,.,.,.,.,.,774,1299,525,0.40,
+Japan,Wtemp,Forest,Pinus densiflora,D,Everg,Mature,Comp,Nakane 1986,1986,Nakane1,80,15,1544,35,.,.,.,.,.,.,676,1255,579,0.54,
+Japan,Wtemp,Forest,Cryptomeria japonica,D,Everg,Mature,Comp,Ohashi,2000,C,10,16.2,1970,33,.,.,.,.,.,.,315,618,303,0.49,
+Italy,Wtemp,Forest,Quercus,D,Decid,Mature,Excl,Rey,2002,Rey1,40,14,755,42,.,.,.,.,34,.,604,1097,494,0.45,
+Georgia,Wtemp,Forest,Quercus,W,Decid,Mature,Extr,Pulliam,1993,EFP,.,19,1258,32,.,.,.,.,.,.,327,881,554,0.63,
+Georgia,Wtemp,Forest,Quercus,W,Decid,Mature,Extr,Pulliam,1993,WFP,.,19,1258,32,.,.,.,.,.,.,359,902,543,0.60,
+France,Wtemp,Forest,Fagus,D,Decid,Mature,Excl,Epron,1999,Hesse,30,9.2,820,48.75,.,.,.,60,140,200,396,660,264,0.40,
+France,Wtemp,Forest,Fagus,D,Decid,Mature,Excl,Epron,2001,Hesse,30,9.2,820,48.75,.,.,.,60,140,200,317,660,343,0.52,
+Florida,Wtemp,Forest,Slash pine,D,Everg,Aggrad,Excl,Ewel,1987,Ewel9,9,24,1255,30,.,.,.,.,338,.,417,850,434,0.51,"Litter data are from Gholz 1985, different sites"
+Florida,Wtemp,Forest,Slash pine,D,Everg,Mature,Excl,Ewel,1987,Ewel29,29,24,1255,30,.,.,.,.,358,.,494,1300,806,0.62,"Litter data are from Gholz 1985, different sites"
+Australia,Wtemp,Forest,Pinus radiata,D,Everg,Aggrad,Extr,Ryan,1996,Ryan1,20,13,791,-35,903,599,304,185,8,193,713,987,274,0.28,
+Sweden,Ctemp,Ag,Hordeum distichum,D,Decid,Aggrad,Extr,Paustian,1990,Paustian1,1,5,576,60,320,173,147,147,56,203,170,230,60,0.26,
+England,Ctemp,Ag,Mix,D,Decid,Aggrad,Comp,Monteith,1964,Rothamsted,1,10,687,51,.,.,.,.,.,.,206,400,194,0.49,
+India,Tropical,Ag,Wheat/maize,D,Decid,Aggrad,Comp,Singh,1986,Banaras,1,26,1190,25,1614,1524,90,90,.,.,369,430,60,0.14,NPP figures are for 90 days
+Missouri,Wtemp,Ag,Wheat,D,Decid,Aggrad,Isot,Buyanovsky,1987,Tucker,1,12.5,1000,39,543,253,290,290,90,380,606,700,95,0.14,Rs estimated from graph
+Japan,Wtemp,Ag,Rice-barley,D,Decid,Aggrad,Extr,Koizumi,1993,Koizumi1,1,13.1,1202,36,617,.,.,.,.,.,716,1170,454,0.39,
+Japan,Wtemp,Ag,Peanut-wheat,D,Decid,Aggrad,Extr,Koizumi,1993,Koizumi2,1,13.1,1202,36,627,.,.,.,.,.,798,1487,689,0.46,
+Japan,Wtemp,Ag,Dentcorn-ryegrass,D,Decid,Aggrad,Extr,Koizumi,1993,Koizumi3,1,13.1,1202,36,1358,.,.,.,.,.,1050,2603,1553,0.60,

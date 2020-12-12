@@ -96,7 +96,7 @@ srdbv5 %>%
   filter(Partition_method %!in% c("", "Other", "Girdling", "TBCA")) %>% #filter those out (not too much data)
   ggplot(aes(Partition_method, RC_annual, fill = Partition_method)) +
   geom_violin(draw_quantiles = c(.25, 0.5, .75)) +
-  theme(legend.title = element_blank(),
+  theme(legend.position = "none",
         # axis.title.x = element_blank(),
         axis.text.x = element_text(angle = 30, vjust = .5)) +
   scale_x_discrete(labels = c("Comparion(54)", "Exclusion(387)", "Extraction(110)", "Isotope(17)", "Model(29)", "Subtraction(57)")) +
@@ -120,13 +120,12 @@ left_join(srdbv5, IGBP_Koppen_MODIS, by=c("Latitude2" = "Latitude", "Longitude2"
   srdbv5
 ```
 
-``` {r RCbyClimateAndVeg}
+```{r}
 srdbv5 %>% 
   filter(!is.na(MiddleClimate)) %>%
   ggplot(aes(x = MiddleClimate, y = RC_annual, fill = MiddleClimate)) +
   geom_violin(draw_quantiles = c(.25, .5, .75)) +
-  theme(legend.title = element_blank()) +
-  theme_minimal() -> plot2
+  theme(legend.position = "none") -> plot2
 
 srdbv5 %>% 
   filter(!is.na(Ecosystem)) %>% 
@@ -134,7 +133,7 @@ srdbv5 %>%
   ggplot(aes(x = Ecosystem, y = RC_annual, fill = Ecosystem)) +
   geom_violin(draw_quantiles = c(.25, .5, .75)) +
   theme_minimal() +
-  theme(legend.title = element_blank(),
+  theme(legend.position = "none",
         # axis.title.x = element_blank(),
         axis.text.x = element_text(angle = 30, vjust = .5)) -> plot3
 
@@ -145,11 +144,12 @@ srdbv5 %>%
   ggplot(aes(x = Ecosystem_type, y = RC_annual, fill = Ecosystem_type)) +
   geom_violin(draw_quantiles = c(.25, .5, .75)) +
   theme_minimal() +
-  theme(legend.title = element_blank(),
+  theme(legend.position = "none",
         # axis.title.x = element_blank(),
         axis.text.x = element_text(angle = 30, vjust = 0.5)) -> plot4
 ```
 
-```{r 4In1Plot}
+
+```{r 4In1Plot, fig.width=8, fig.height=8}
 plot_grid(plot1, plot2, plot3, plot4)
 ```
