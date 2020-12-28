@@ -481,7 +481,8 @@ bind_rows(
   scale_fill_viridis_c(name = "Probability", direction = -1) +
   xlab(expression(R[root]~contribution~to~R[S])) +
   ylab(element_blank()) +
-  theme(axis.text.y = element_text(angle = 0)) +
+  theme(axis.text.y = element_text(angle = 0),
+        legend.position = c(0.9, 0.35)) +
   scale_y_discrete(labels= c("Global", "SRDB"),
                    position = "left") ->
   overall_comparisom
