@@ -19,7 +19,7 @@ plan <- drake::drake_plan(
     mutate(RC_annual2 = Ra_annual / Rs_annual,
            RC_annual3 = (Rs_annual - Rh_annual) / Rs_annual) %>% 
     mutate(RC_annual = coalesce(RC_annual, RC_annual2, RC_annual3)) %>% 
-    dplyr::select(Site_ID, Latitude, Longitude, Leaf_habit, MAT, MAP, 
+    dplyr::select(Site_ID, Latitude, Longitude, Leaf_habit, MAT, MAP, Ecosystem_type, # ecosyetem_type reported in the paper
                   Rs_annual, Rh_annual, RC_annual, Manipulation,
                   Partition_method) ,
     # filter(RC_annual >= 0, RC_annual <= 1, Manipulation == "None"
@@ -42,7 +42,9 @@ plan <- drake::drake_plan(
       TRUE ~ "Other")), 
   
   precip = getData("worldclim", path = here::here(), var = "prec", res = 10, download = !file.exists("wc10/prec1.hdr")),
+  precip_agg = aggregate(precip, fact = c(3, 3), fun = mean, na.rm = TRUE), # aggregate to 0.5 resolution
   tmean = getData("worldclim", path = here::here(), var = "tmean", res = 10, download = !file.exists("wc10/wc10/tmean1.hdr")),
+  tmean_agg = aggregate(tmean, fact = c(3, 3), fun = mean, na.rm = TRUE), # aggregate to 0.5 resolution
   
   # Calculate annual sum for precipitation...
   precip_global = raster::as.data.frame(precip, xy = TRUE) %>% drop_na(),
@@ -59,21 +61,25 @@ plan <- drake::drake_plan(
   
   # MAP data that matches the srdb coordinates
   precip_coords = raster::extract(precip, srdb %>% dplyr::select(Longitude, Latitude)),
-  precip_coords_global = raster::extract(precip, IGBP_Koppen_MODIS %>% dplyr::select(Longitude, Latitude)),
+  precip_coords_global = raster::extract(precip_agg, IGBP_Koppen_MODIS %>% dplyr::select(Longitude, Latitude)), # aggregate to 0.5 resolution
   MAP_WC = apply(precip_coords, 1, sum),
-  MAP_WC_global = apply(precip_coords_global, 1, sum),
+  MAP_WC_global = apply(precip_coords_global, 1, sum), 
   
   # The same for MAT
   tmean_vals = raster::extract(tmean, srdb %>% dplyr::select(Longitude, Latitude)),
-  tm_coords_global = raster::extract(tmean, IGBP_Koppen_MODIS %>% dplyr::select(Longitude, Latitude)),
+  tm_coords_global = raster::extract(tmean_agg, IGBP_Koppen_MODIS %>% dplyr::select(Longitude, Latitude)), # aggregate to 0.5 resolution
   MAT_WC = apply(tmean_vals, 1, mean),
-  MAT_WC_global = apply(tm_coords_global, 1, mean),
+  MAT_WC_global = apply(tm_coords_global, 1, mean), 
   
   ## Pulling Mycorrhizae Data and Investigating it
   am = raster(here::here("Data", "MycDistrAM_current.TIF")),
+  am_agg = aggregate(am, fact = c(3, 3), fun = mean, na.rm = TRUE), # aggregate to 0.5 resolution
   em = raster(here::here("Data", "MycDistrEM_current.TIF")),
+  em_agg = aggregate(em, fact = c(3, 3), fun = mean, na.rm = TRUE), # aggregate to 0.5 resolution
   er = raster(here::here("Data", "MycDistrER_current.TIF")),
+  er_agg = aggregate(er, fact = c(3, 3), fun = mean, na.rm = TRUE), # aggregate to 0.5 resolution
   nm = raster(here::here("Data", "MycDistrNM_current.TIF")),
+  nm_agg = aggregate(nm, fact = c(3, 3), fun = mean, na.rm = TRUE), # aggregate to 0.5 resolution
   
   # Extract the myco data for each coordinate pair in the SRDB database and add it to the rest of the data
   AM_percent = raster::extract(am, srdb %>% dplyr::select(Longitude, Latitude)),
@@ -81,10 +87,10 @@ plan <- drake::drake_plan(
   ER_percent = raster::extract(er, srdb %>% dplyr::select(Longitude, Latitude)),
   NM_percent = raster::extract(nm, srdb %>% dplyr::select(Longitude, Latitude)),
   
-  AM_percent_global = raster::extract(am, IGBP_Koppen_MODIS %>% dplyr::select(Longitude, Latitude)),
-  EM_percent_global = raster::extract(em, IGBP_Koppen_MODIS %>% dplyr::select(Longitude, Latitude)),
-  ER_percent_global = raster::extract(er, IGBP_Koppen_MODIS %>% dplyr::select(Longitude, Latitude)),
-  NM_percent_global = raster::extract(nm, IGBP_Koppen_MODIS %>% dplyr::select(Longitude, Latitude)),
+  AM_percent_global = raster::extract(am_agg, IGBP_Koppen_MODIS %>% dplyr::select(Longitude, Latitude)),
+  EM_percent_global = raster::extract(em_agg, IGBP_Koppen_MODIS %>% dplyr::select(Longitude, Latitude)),
+  ER_percent_global = raster::extract(er_agg, IGBP_Koppen_MODIS %>% dplyr::select(Longitude, Latitude)),
+  NM_percent_global = raster::extract(nm_agg, IGBP_Koppen_MODIS %>% dplyr::select(Longitude, Latitude)),
   
   # Extract biomass
   BM_aboveground = raster(here::here("Data", "aboveground_biomass_carbon_2010.tif")) %>%
@@ -92,15 +98,17 @@ plan <- drake::drake_plan(
   BM_belowground = raster(here::here("Data", "belowground_biomass_carbon_2010.tif")) %>%
     raster::extract(srdb %>% dplyr::select(Longitude, Latitude)),
   
-  BM_aboveground_global = raster(here::here("Data", "aboveground_biomass_carbon_2010.tif")) %>%
-    raster::extract(IGBP_Koppen_MODIS %>% dplyr::select(Longitude, Latitude)),
-  BM_belowground_global = raster(here::here("Data", "belowground_biomass_carbon_2010.tif")) %>%
-    raster::extract(IGBP_Koppen_MODIS %>% dplyr::select(Longitude, Latitude)),
+  BMa = raster(here::here("Data", "aboveground_biomass_carbon_2010.tif")),
+  BMa_agg = aggregate(BMa, fact = c(180, 180), fun = mean, na.rm = TRUE), # aggregate to 0.5 resolution
+  BMb = raster(here::here("Data", "belowground_biomass_carbon_2010.tif")),
+  BMb_agg = aggregate(BMb, fact = c(180, 180), fun = mean, na.rm = TRUE), # aggregate to 0.5 resolution
+  BM_aboveground_global = raster::extract(BMa_agg, IGBP_Koppen_MODIS %>% dplyr::select(Longitude, Latitude)),
+  BM_belowground_global = raster::extract(BMb_agg, IGBP_Koppen_MODIS %>% dplyr::select(Longitude, Latitude)),
   
   # Add these biomass values to the larger dataset
   # Remove values where::here there::here are no biomass data
   
-  ## Extracts N deposition data for each srdb point
+  ## Extracts N deposition data for each srdb point, already in 0.5 resolution
   #  https://www.isimip.org/gettingstarted/availability-input-data-isimip2b/
   N_dep_half_deg = raster(here::here("Data", "global_mean_Nitrogen_depostion_1980_2017_half_degree.tif")) %>% 
     raster::extract(srdb %>% dplyr::select(Longitude, Latitude)),
@@ -115,7 +123,7 @@ plan <- drake::drake_plan(
   N_dep_1993_global = raster(here::here("Data", "sdat_830_2_20200721_153826639.asc")) %>%
     raster::extract(IGBP_Koppen_MODIS %>% dplyr::select(Longitude, Latitude)),
   
-  ## Extracts GPP from FLUXCOM
+  ## Extracts GPP from FLUXCOM (already 0.5 resolution)
   gpp_fluxcom = raster(here::here("Data", "fluxcom_gpp2.tif")) %>% 
     raster::extract(srdb %>% dplyr::select(Longitude, Latitude )),
   
@@ -143,26 +151,30 @@ plan <- drake::drake_plan(
   soc_soilgrids = raster("Data/OCSTHA_M_sd2_1km_ll.tif") %>%
     raster::extract(srdb %>% dplyr::select(Longitude, Latitude)),
   
-  bd_soilgrids_global = raster("Data/BLDFIE_M_sl2_1km_ll.tif") %>%
-    raster::extract(IGBP_Koppen_MODIS %>% dplyr::select(Longitude, Latitude)),
-  clay_soilgrids_global = raster("Data/CLYPPT_M_sl2_1km_ll.tif") %>%
-    raster::extract(IGBP_Koppen_MODIS %>% dplyr::select(Longitude, Latitude)),
-  soc_soilgrids_global = raster("Data/OCSTHA_M_sd2_1km_ll.tif") %>%
-    raster::extract(IGBP_Koppen_MODIS %>% dplyr::select(Longitude, Latitude)),
+  soilbd = raster("Data/BLDFIE_M_sl2_1km_ll.tif"),
+  soilbd_agg = aggregate(soilbd, fact = c(60, 60), fun = mean, na.rm = TRUE), # aggregate to 0.5 resolution
+  bd_soilgrids_global = raster::extract(soilbd_agg, IGBP_Koppen_MODIS %>% dplyr::select(Longitude, Latitude)),
+  
+  soilclay = raster("Data/CLYPPT_M_sl2_1km_ll.tif"),
+  soilclay_agg = aggregate(soilclay, fact = c(60, 60), fun = mean, na.rm = TRUE), # aggregate to 0.5 resolution
+  clay_soilgrids_global = raster::extract(soilclay_agg, IGBP_Koppen_MODIS %>% dplyr::select(Longitude, Latitude)),
+  
+  soilsoc = raster("Data/OCSTHA_M_sd2_1km_ll.tif"),
+  soilsoc_agg = aggregate(soilsoc, fact = c(60, 60), fun = mean, na.rm = TRUE), # aggregate to 0.5 resolution
+  soc_soilgrids_global = raster::extract(soilsoc_agg, IGBP_Koppen_MODIS %>% dplyr::select(Longitude, Latitude)),
   
   # get EVI 
   EVI_mean = raster("Data/EVI_mean.tif") %>%
     raster::extract(srdb %>% dplyr::select(Longitude, Latitude)),
   
   EVI_mean_global = raster("Data/EVI_mean.tif") %>%
+    aggregate(fact = c(5, 5), fun = mean, na.rm = TRUE) %>% # aggregate to 0.5 resolution
     raster::extract(IGBP_Koppen_MODIS %>% dplyr::select(Longitude, Latitude)),
   
   # srdb with all factors extracted
   srdb_all = cbind(srdb_IGBP, bd_soilgrids, clay_soilgrids, soc_soilgrids, EVI_mean) %>% 
-    # Temp data is stored in degC * 10, so we need to divide to get back to degC
-    # unit from kg/m3 to g/cm3
-    mutate(bd_soilgrids = bd_soilgrids / 1000,
-           MAT_WC = MAT_WC / 10),
+    mutate(bd_soilgrids = bd_soilgrids / 1000, # unit from kg/m3 to g/cm3 
+           MAT_WC = MAT_WC / 10), # Temp data is stored in degC * 10, so we need to divide 10 to get back to degC
   
   # prepare global 0.5*0.5 resolution data for global RC_prediction map
   globalData = cbind(IGBP_Koppen_MODIS, MAP_WC_global, MAT_WC_global, AM_percent_global, EM_percent_global, 
@@ -179,8 +191,8 @@ plan <- drake::drake_plan(
                   EVI_mean = EVI_mean_global) %>% 
     dplyr::rename(Rs_warner = warner_rs) %>% 
     mutate(MiddleClimate = as.factor(MiddleClimate),
-           bd_soilgrids = bd_soilgrids / 1000,
-           MAT = MAT / 10),
+           bd_soilgrids = bd_soilgrids / 1000, # unit from kg/m3 to g/cm3 
+           MAT = MAT / 10), # Temp data is stored in degC * 10, so we need to divide 10 to get back to degC
   
   # Global map
   counties = map_data("world", region = ".", exact = FALSE)

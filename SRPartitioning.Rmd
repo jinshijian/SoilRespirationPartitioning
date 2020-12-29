@@ -32,6 +32,7 @@ library(randomForest)
 library(caret)
 library(e1071)
 library(car) # for unbalanced anova
+library(pdp)
 source("functions.R")
 ```
 
@@ -43,6 +44,10 @@ srdb_all <- drake::readd(srdb_all) %>%
          absLatitude = abs(Latitude),
          MiddleClimate = as.factor(MiddleClimate)) %>% 
   filter(RC_annual < 1 & RC_annual > 0)
+
+# EVI issue: /1000 and take care of < 0 issue
+srdb_all$EVI_mean = srdb_all$EVI_mean / 1000
+srdb_all$EVI_mean %>% min(na.rm = TRUE)
 
 # ecosystem2 NA to NotReported
 srdb_all$Ecosystem2 <- as.character(srdb_all$Ecosystem2)
@@ -68,8 +73,14 @@ globalData <- drake::readd(globalData) %>%
   mutate(absLatitude = abs(Latitude)) ->
   globalData
 
+# EVI issue: /1000 and take care of < 0 issue
+globalData$EVI_mean = globalData$EVI_mean / 1000
+globalData$EVI_mean[globalData$EVI_mean < 0] = 0
+globalData$EVI_mean %>% min(na.rm = TRUE)
+
 counties <- drake::readd(counties)
 ```
+
 
 
 ```{r check NULL values}
@@ -274,14 +285,23 @@ mtry is a parameter for this random forest function that sets how many variables
 The number of trees and this mtry value are both input parameters used to produce the random forest model.
 ```{r RF determine number of parameters}
 # Tune with different mtry values
+set.seed(20201217)
 tuneRF(subset(allData, select = c(MAT, MAP, AM_percent, EM_percent, ER_percent, NM_percent,
                                    BM_aboveground, BM_belowground, N_dep_half_deg, bd_soilgrids, clay_soilgrids, soc_soilgrids, EVI_mean)),
        allData$RC_annual,
-       stepFactor = 1.5,
-       plot = TRUE,
+       stepFactor = 3,
        ntreetry = 200, # Based on the plot above, 200 trees seems reasonable
        trace = TRUE,
-       improve = 1e-5)
+       improve = 1e-5) ->
+  tune_rf
+
+as.data.frame(tune_rf) %>% 
+  mutate(OOBError = round(OOBError, 5)) %>% 
+  ggplot(aes(x = mtry, y = OOBError)) +
+  geom_point() +
+  geom_line() +
+  xlab (expression(m[try])) +
+  ylab ("OOB Error") 
 ```
 
 First, I will use the default settings in the randomForest package to make a random forest model to predict the root contribution to Rs (RC). 
@@ -352,7 +372,7 @@ qplot(1:200, rf$mse ) + geom_line() + theme_bw() +
   p_a
 
 # panel b
-tibble(x = c("ER%", "NM%", "EM%", "Climate", "AM%", "BMa", "N dep", "Clay%", "MAT", "SOC", "BMb", "EVI", "BD", "MAP"),
+tibble(x = c("ErM%", "NM%", "EcM%", "Climate", "AM%", "BMa", "N dep", "Clay%", "MAT", "SOC", "BMb", "EVI", "BD", "MAP"),
        y = sort(importance(rf, type = 1)[1:15])) %>% 
   ggplot(aes(x = reorder(x, y), y)) +
   geom_bar(stat = "identity", width = 0.75) +
@@ -363,7 +383,7 @@ tibble(x = c("ER%", "NM%", "EM%", "Climate", "AM%", "BMa", "N dep", "Clay%", "MA
   rf_b
 
 # panel c
-tibble(x = c("ER%", "NM%", "EM%", "Climate", "AM%", "Clay%", "N dep", "SOC", "BMb", "BMa", "MAT", "EVI", "BD", "MAP"),
+tibble(x = c("Erm%", "NM%", "EcM%", "Climate", "AM%", "Clay%", "N dep", "SOC", "BMb", "BMa", "MAT", "EVI", "BD", "MAP"),
        y = sort(importance(rf, type = 2)[1:15])) %>% 
   ggplot(aes(x = reorder(x, y), y)) +
   geom_bar(stat = "identity", width = 0.75) +
@@ -418,8 +438,8 @@ writ_file(globalData %>%
 writ_file(globalData,
           "Global_RC_annual_prediction2.csv")
 
-globalData$RC_annual %>% mean()
-globalData$RC_annual %>% sd()
+globalData$RC_predict %>% mean()
+globalData$RC_predict %>% sd()
 ```
 
 
@@ -429,6 +449,11 @@ ggplot(globalData, aes(Longitude, Latitude, color = EVI_mean)) +
   lims(x = c(-180, 180), y = c(-90, 90)) +
   labs(color = "RC prediction") +
   scale_color_viridis_c()
+
+ggplot(globalData, aes(Longitude, Latitude, color = Ecosystem2)) + 
+  geom_point(size = 0.3) +
+  lims(x = c(-180, 180), y = c(-90, 90)) +
+  labs(color = "RC prediction") 
 
 # N_dep_half_deg
 
@@ -536,7 +561,7 @@ allData2 = srdb_all %>%
   dplyr::select(Rs_annual, RC_annual, MAT, MAP, AM_percent, EM_percent, ER_percent, NM_percent,
                 BM_aboveground, BM_belowground, N_dep_half_deg, N_dep_1993,
                 MiddleClimate, gpp_fluxcom,
-                Ecosystem2, Latitude, Longitude,
+                Ecosystem2, Ecosystem_type, Latitude, Longitude,
                 bd_soilgrids, clay_soilgrids, soc_soilgrids, EVI_mean,
                 Partition_method) %>% 
   na.omit()
@@ -545,6 +570,10 @@ RC_v5_mod <- lm(RC_annual ~ log(Rs_annual), data = allData2)
 RC_v5_mod2 <- lm(RC_annual ~ log(Rs_annual), data = allData2 %>% filter(Rs_annual < 2500))
 summary(RC_v5_mod)
 summary(RC_v5_mod2)
+allData2$Ecosystem2 %>% unique()
+allData2$Ecosystem_type %>% unique()
+RC_v5_for <- lm(RC_annual ~ log(Rs_annual), data = allData2 %>% filter(Ecosystem_type %in% c("Forest")))
+summary(RC_v5_for)
 
 bind_rows(
   allData2 %>% 
@@ -563,8 +592,9 @@ allData3 %>%
   geom_point(aes(Rs, RC), data = bond2004, col = "blue") +
   # ggtitle(expression("RC=-0.07+0.08ln(Rs), R"^2*"=0.02, n=478")) +
   stat_function(fun = function(x) { -0.66 + 0.16*log(x) }, col = 'blue', size = 1.5) +
-  stat_function(fun = function(x) { 0.155 + 0.03876*log(x) }, col = 'black', size = 1.5) +
   stat_function(fun = function(x) { 0.082 + 0.05*log(x) }, col = 'gray', size = 1.5) +
+  stat_function(fun = function(x) { 0.1807 + 0.03427*log(x) }, col = 'green', size = 1.5) + # forest
+  stat_function(fun = function(x) { 0.155 + 0.03876*log(x) }, col = 'black', size = 1.5) +
   labs(x = element_blank(), 
        y = expression(R[root]~contribution~to~R[S]~(RC))) +
   scale_color_manual(name = "Data",
@@ -590,6 +620,8 @@ allData3 %>%
 
 factor_test1
 
+
+allData2 %>% dplyr::filter(Rs_annual > 5000)
 ```
 
 
@@ -659,14 +691,18 @@ allData2 %>%
        y = expression(R[root]~contribution~to~R[S]~(RC)))
 
 # test ecosystem
-Anova(lm(RC_annual ~ Ecosystem2, data = allData2), type="III") 
+allData2$Ecosystem_type %>% unique()
+globalData$Ecosystem2 %>% unique()
+allData2$Ecosystem_type[allData2$Ecosystem_type == "Orchard"] = "Plantation"
+
+Anova(lm(RC_annual ~ Ecosystem_type, data = allData2), type="III") 
 allData2 %>% 
-  dplyr::select(RC_annual, Rs_annual, Ecosystem2) %>% 
-  filter(Ecosystem2 %!in% c("A")) %>% 
-  group_by(Ecosystem2) %>% 
+  dplyr::select(RC_annual, Rs_annual, Ecosystem_type) %>% 
+  filter(Ecosystem_type %!in% c("Urban")) %>%
+  group_by(Ecosystem_type) %>% 
   summarise(RC_mean = mean(RC_annual), Rs_mean = mean(Rs_annual),
             RC_sd = sd(RC_annual), Rs_sd = sd(Rs_annual), obs = n()) %>% 
-  ggplot(aes(Rs_mean, RC_mean, col = Ecosystem2)) +
+  ggplot(aes(Rs_mean, RC_mean, col = Ecosystem_type)) +
   geom_point(alpha = 1, aes(size = obs), show.legend = FALSE) +
   geom_errorbar(aes(ymin = RC_mean - RC_sd, ymax = RC_mean + RC_sd)) +
   # stat_function(fun = function(x) { 0.082 + 0.05*log(x) }, col = 'pink', size = 1.5) +
@@ -943,4 +979,85 @@ lm(RC_annual ~ MAT * MiddleClimate, data = allData) %>% summary()
 lm(RC_annual ~ soc_soilgrids * MiddleClimate, data = allData) %>% summary()
 ```
 
+## partial dependent plot
+```{r pdp}
+pdp::partial(rf, pred.var = "MAT", plot = TRUE,
+        plot.engine = "ggplot2") +
+  labs(x = expression(MAT~(degree~C)),
+       y = element_blank()) -> p_mat
+
+pdp::partial(rf, pred.var = "MAP", plot = TRUE,
+        plot.engine = "ggplot2") +
+  xlab(expression(MAP~(mm))) +
+  ylab(expression(Predicted~RC)) -> p_map
+
+pdp::partial(rf, pred.var = "AM_percent", plot = TRUE,
+        plot.engine = "ggplot2") +
+  xlab(expression(MAP~(mm))) +
+  ylab(expression(Predicted~RC)) -> p_am
+
+pdp::partial(rf, pred.var = "EM_percent", plot = TRUE,
+        plot.engine = "ggplot2") +
+  labs(x = expression(EcM~("%")),
+       y = element_blank()) -> p_ecm
+
+pdp::partial(rf, pred.var = "ER_percent", plot = TRUE,
+        plot.engine = "ggplot2") +
+  labs(x = expression(ErM~("%")),
+       y = element_blank()) -> p_erm
+
+pdp::partial(rf, pred.var = "NM_percent", plot = TRUE,
+        plot.engine = "ggplot2") +
+  xlab(expression(MAP~(mm))) +
+  ylab(expression(Predicted~RC)) -> p_nm
+
+pdp::partial(rf, pred.var = "BM_aboveground", plot = TRUE,
+        plot.engine = "ggplot2") +
+  labs(x = expression(BMa~(Mg~C~ha^{-1})),
+       y = element_blank()) -> p_bma
+
+pdp::partial(rf, pred.var = "BM_belowground", plot = TRUE,
+        plot.engine = "ggplot2") +
+  xlab(expression(MAP~(mm))) +
+  ylab(expression(Predicted~RC)) -> p_bmb
+
+pdp::partial(rf, pred.var = "N_dep_half_deg", plot = TRUE,
+        plot.engine = "ggplot2") +
+  labs(x = expression(N~deposition~(g~N~m^{-2}~yr^{-1})),
+      y = element_blank()) -> p_Ndep
+
+pdp::partial(rf, pred.var = "bd_soilgrids", plot = TRUE,
+        plot.engine = "ggplot2") +
+  labs(x = expression(BD~(g~cm^{-3})),
+       y = element_blank()) -> p_bd
+
+pdp::partial(rf, pred.var = "clay_soilgrids", plot = TRUE,
+        plot.engine = "ggplot2") +
+  xlab(expression(MAP~(mm))) +
+  ylab(expression(Predicted~RC)) -> p_clay
+
+pdp::partial(rf, pred.var = "soc_soilgrids", plot = TRUE,
+        plot.engine = "ggplot2") +
+  labs(x = expression(SOC~(Mg~C~ha^{-1})),
+       y = element_blank()) -> p_soc
+
+pdp::partial(rf, pred.var = "EVI_mean", plot = TRUE,
+        plot.engine = "ggplot2") +
+  labs(x = expression(EVI),
+       y = element_blank()) -> p_evi
+
+```
+
+```{r, fig.width=8, fig.height=8}
+(p_map | p_bd | p_evi) / (p_bmb | p_soc | p_mat) / (p_clay | p_Ndep | p_bma) / (p_am | p_ecm) / (p_nm | p_erm)
+  # plot_annotation(tag_levels = "a")
+```
+
+```{r}
+drake::readd(BMa) %>% image()
+drake::readd(BMa_agg) %>% image()
+
+drake::readd(soilbd) %>% image()
+drake::readd(soilbd_agg) %>% image()
+```
 
