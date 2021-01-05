@@ -1068,3 +1068,6 @@ drake::readd(soilbd) %>% image()
 drake::readd(soilbd_agg) %>% image()
 ```
 
+```{r}
+sessionInfo()
+```
