@@ -8,10 +8,10 @@ writ_file <- function(input, output) write.csv(input, file.path(OUT_DIR, output)
 #*****************************************************************************************************************
 get_evi <- function(sdata){
   evi_mean <- raster("Data/EVI_mean.tif")
-  for (i in 1:nrow(sdata)){
+  for (i in seq_len(nrow(sdata))){
     lat <- sdata$Latitude[i]
     lon <- sdata$Longitude[i]
-    if (is.na(lat) | is.na(lon)) {next} 
+    if (is.na(lat) | is.na(lon)) { next } 
     else {
       lat_low <- lat - 0.1
       lat_high <- lat + 0.1
@@ -21,9 +21,9 @@ get_evi <- function(sdata){
       ex_cell <- raster::extent(c(lon_low, lon_high, lat_low, lat_high))
       evi_cell <- raster::extract(evi_mean, ex_cell, fun = mean, na.rm = TRUE)
       
-      sdata[i, "EVI_2"] <- evi_cell
+      sdata$EVI_2[i] <- evi_cell
     }
     print(paste0("*****", i))
   }
-  return (sdata)
+  return(sdata)
 }
