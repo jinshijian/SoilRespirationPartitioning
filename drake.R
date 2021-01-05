@@ -19,7 +19,7 @@ plan <- drake::drake_plan(
     mutate(RC_annual2 = Ra_annual / Rs_annual,
            RC_annual3 = (Rs_annual - Rh_annual) / Rs_annual) %>% 
     mutate(RC_annual = coalesce(RC_annual, RC_annual2, RC_annual3)) %>% 
-    dplyr::select(Site_ID, Latitude, Longitude, Leaf_habit, MAT, MAP, Ecosystem_type, # ecosyetem_type reported in the paper
+    dplyr::select(Site_ID, Latitude, Longitude, Leaf_habit, MAT, MAP, Ecosystem_type, # ecosystem_type reported in the paper
                   Rs_annual, Rh_annual, RC_annual, Manipulation,
                   Partition_method) ,
     # filter(RC_annual >= 0, RC_annual <= 1, Manipulation == "None"
