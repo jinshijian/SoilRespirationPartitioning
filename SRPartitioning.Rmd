@@ -63,7 +63,7 @@ allData = srdb_all %>%
   na.omit()
 
 allData$Ecosystem2 <- as.factor(allData$Ecosystem2)
-  
+
 # Extract global climate space data
 map_mat_global <- drake::readd(map_mat_global)
 
@@ -118,7 +118,6 @@ srdb_all %>%
 
 ```
 
-
 ## Pulling the Climate Data and Comparing the Distribution to that in the SRDB
 The first is a plot of the global distribution of mean annual temperature (MAT) and precipitation (MAP). 
 The second also includes the values from all SRDB sites, plotted on top of the first graph.
@@ -172,14 +171,16 @@ srdb_all %>%
 ggplot(srdb_all, aes(x = MAT_WC, y = MAT)) + 
   geom_point(size = 1.5, color = "chartreuse3") +
   theme_minimal() +
-  labs(title = "Comparing WorldClim2 MATs to SRDB MATs", x = "WorldClim2 MAT (°C)", y = "Reported SRDB MAT (°C)") +
+  labs(title = "Comparing WorldClim2 MATs to SRDB MATs",
+       x = "WorldClim2 MAT (°C)", y = "Reported SRDB MAT (°C)") +
   geom_abline(intercept = 0, slope = 1, linetype = "dashed", size = 1)
 
 # Comparing MAP
 ggplot(srdb_all, aes(x = MAP_WC, y = MAP)) + 
   geom_point(size = 1.5, color = "chartreuse3") +
   theme_minimal() +
-  labs(title = "Comparing WorldClim2 MAPs to SRDB MAPs", x = "WorldClim2 MAP (mm)", y = "Reported SRDB MAP (mm)") +
+  labs(title = "Comparing WorldClim2 MAPs to SRDB MAPs",
+       x = "WorldClim2 MAP (mm)", y = "Reported SRDB MAP (mm)") +
   geom_abline(intercept = 0, slope = 1, linetype = "dashed", size = 1)
 
 ## Makes some scatterplots with the SRDB data
@@ -287,7 +288,7 @@ The number of trees and this mtry value are both input parameters used to produc
 # Tune with different mtry values
 set.seed(20201217)
 tuneRF(subset(allData, select = c(MAT, MAP, AM_percent, EM_percent, ER_percent, NM_percent,
-                                   BM_aboveground, BM_belowground, N_dep_half_deg, bd_soilgrids, clay_soilgrids, soc_soilgrids, EVI_mean)),
+                                  BM_aboveground, BM_belowground, N_dep_half_deg, bd_soilgrids, clay_soilgrids, soc_soilgrids, EVI_mean)),
        allData$RC_annual,
        stepFactor = 3,
        ntreetry = 200, # Based on the plot above, 200 trees seems reasonable
@@ -428,7 +429,7 @@ globalData %>%
 all_trees_pred <- predict(rf, globalData, predict.all=TRUE)
 all_trees_RC <- all_trees_pred$individual
 globalData$rc_sd <- apply(all_trees_RC, 1, sd)
-globalData$rc_cv <- round(globalData$rc_sd/globalData$RC_predict *100, 2)
+globalData$rc_cv <- round(globalData$rc_sd/globalData$RC_predict * 100, 2)
 
 # outputs RC_prediction
 writ_file(globalData %>%
@@ -609,12 +610,16 @@ allData3 %>%
                arrow = arrow(length = unit(0.25, "cm")),
                size = 0.5,
                col = "black") +
-  annotate("text", x = 2600, y = 0.95, label = paste0("RC = -0.66 + 0.16 ln(Rs)"), col = "blue", hjust = 0) +
-  annotate("text", x = 2600, y = 0.85, label = paste0("italic(R) ^ 2 == 0.38 (n == 63)"), parse = TRUE, col = "blue", hjust = 0) +
+  annotate("text", x = 2600, y = 0.95, label = paste0("RC = -0.66 + 0.16 ln(Rs)"),
+           col = "blue", hjust = 0) +
+  annotate("text", x = 2600, y = 0.85, label = paste0("italic(R) ^ 2 == 0.38 (n == 63)"),
+           parse = TRUE, col = "blue", hjust = 0) +
   annotate(geom="text", x=2600, y=0.75, label="Bond-Lamberty (2004)", color="blue", hjust = 0) +
   
-  annotate("text", x = 2600, y = 0.35, label = paste0("RC = 0.16 + 0.04 ln(Rs)"), col = "black", hjust = 0) +
-  annotate("text", x = 2600, y = 0.25, label = paste0("italic(R) ^ 2 == 0.02 ", " (n == 861)"), parse = TRUE, col = "black", hjust = 0) +
+  annotate("text", x = 2600, y = 0.35, label = paste0("RC = 0.16 + 0.04 ln(Rs)"),
+           col = "black", hjust = 0) +
+  annotate("text", x = 2600, y = 0.25, label = paste0("italic(R) ^ 2 == 0.02 ", " (n == 861)"),
+           parse = TRUE, col = "black", hjust = 0) +
   annotate(geom="text", x=2600, y=0.15, label="This study", color="black", hjust = 0) -> 
   factor_test1
 
@@ -649,7 +654,7 @@ allData2 %>%
   labs(x = element_blank(),
        y = element_blank()) ->
   factor_test2
-  # + geom_errorbarh(aes(xmin = Rs_mean - Rs_sd, xmax = Rs_mean + Rs_sd)) 
+# + geom_errorbarh(aes(xmin = Rs_mean - Rs_sd, xmax = Rs_mean + Rs_sd)) 
 
 allData2 %>% 
   dplyr::select(RC_annual, Rs_annual, Partition_group) %>% 
@@ -695,8 +700,8 @@ allData2$Ecosystem_type %>% unique()
 globalData$Ecosystem2 %>% unique()
 allData2$Ecosystem_type[allData2$Ecosystem_type == "Orchard"] = "Plantation"
 
-Anova(lm(RC_annual ~ Ecosystem_type, data = allData2), type="III") 
-allData2 %>% 
+Anova(lm(RC_annual ~ Ecosystem_type, data = allData2), type = "III") 
+allData2 %>%
   dplyr::select(RC_annual, Rs_annual, Ecosystem_type) %>% 
   filter(Ecosystem_type %!in% c("Urban")) %>%
   group_by(Ecosystem_type) %>% 
@@ -729,7 +734,7 @@ lm_climate_factor <- function(col_name){
     sub_data
   
   colnames(sub_data) <- c("RC_annual", "Factor", "Climate")
-   
+  
   sub_data %>% group_by(Climate, Factor) %>%
     summarise(RC_annual = mean(RC_annual), obs = n()) ->
     sub_data
@@ -767,8 +772,10 @@ allData %>%
 sub_bd %>% 
   ggplot(aes(x = bd_soilgrids, y = RC_annual)) +
   geom_point(aes(size = obs), shape = 16, alpha = 0.5) +
-  geom_smooth(data = sub_bd %>% filter(MiddleClimate %in% c("A")), method = "lm", fill = "skyblue") +
-  geom_smooth(data = sub_bd %>% filter(MiddleClimate %in% c("E")), method = "lm", fill = "pink", col = "red") +
+  geom_smooth(data = sub_bd %>% filter(MiddleClimate %in% c("A")), 
+              method = "lm", fill = "skyblue") +
+  geom_smooth(data = sub_bd %>% filter(MiddleClimate %in% c("E")), 
+              method = "lm", fill = "pink", col = "red") +
   labs(x = expression(Bulk~density~(g~cm^{-3})), 
        y = expression(R[root]~contribution~to~R[S]~(RC))) +
   theme(legend.position = "none") +
@@ -800,8 +807,8 @@ sub_evi %>%
   labs(x = expression(EVI), 
        y = element_blank()) +
   theme(legend.position = "none",
-        axis.text.y=element_blank(),
-        axis.ticks.y=element_blank()) +
+        axis.text.y = element_blank(),
+        axis.ticks.y = element_blank()) +
   facet_grid(rows = vars(MiddleClimate)) ->
   evi_panel
 
@@ -812,8 +819,8 @@ sub_evi %>%
   labs(x = expression(EVI), 
        y = element_blank()) +
   theme(legend.position = "none",
-        axis.text.y=element_blank(),
-        axis.ticks.y=element_blank()) ->
+        axis.text.y = element_blank(),
+        axis.ticks.y = element_blank()) ->
   evi_panel2
 
 ### map
@@ -831,8 +838,8 @@ sub_map %>%
   geom_smooth(data = sub_map %>% filter(MiddleClimate %in% c("A")), method = "lm", fill = "skyblue") +
   labs(x = expression(MAP~(mm)), 
        y = element_blank()) +
-  theme(axis.text.y=element_blank(),
-        axis.ticks.y=element_blank()) +
+  theme(axis.text.y = element_blank(),
+        axis.ticks.y = element_blank()) +
   facet_grid(rows = vars(MiddleClimate)) ->
   map_panel
 
@@ -842,8 +849,8 @@ sub_map %>%
   # geom_smooth(data = sub_map, method = "lm") +
   labs(x = expression(MAP~(mm)), 
        y = element_blank()) +
-  theme(axis.text.y=element_blank(),
-        axis.ticks.y=element_blank()) ->
+  theme(axis.text.y = element_blank(),
+        axis.ticks.y = element_blank()) ->
   map_panel2
 
 # Figure S3
@@ -892,8 +899,8 @@ sub_mat %>%
   labs(x = expression(MAT~(degree~C)), 
        y = element_blank()) +
   theme(legend.position = "none",
-        axis.text.y=element_blank(),
-        axis.ticks.y=element_blank()) +
+        axis.text.y = element_blank(),
+        axis.ticks.y = element_blank()) +
   facet_grid(rows = vars(MiddleClimate)) ->
   mat_panel
 
@@ -904,8 +911,8 @@ sub_mat %>%
   labs(x = expression(MAT~(degree~C)), 
        y = element_blank()) +
   theme(legend.position = "none",
-        axis.text.y=element_blank(),
-        axis.ticks.y=element_blank()) ->
+        axis.text.y = element_blank(),
+        axis.ticks.y = element_blank()) ->
   mat_panel2
 
 ### BMb
@@ -923,8 +930,8 @@ sub_bmb %>%
   geom_smooth(data = sub_bmb %>% filter(MiddleClimate %in% c("E")), method = "lm", fill = "skyblue", col = "blue") +
   labs(x = expression(Belowground~biomass~(Mg~C~ha^{-1})), 
        y = element_blank()) +
-  theme(axis.text.y=element_blank(),
-        axis.ticks.y=element_blank()) +
+  theme(axis.text.y = element_blank(),
+        axis.ticks.y = element_blank()) +
   facet_grid(rows = vars(MiddleClimate)) ->
   bmb_panel
 
@@ -934,8 +941,8 @@ sub_bmb %>%
   # geom_smooth(data = sub_bmb, method = "lm") +
   labs(x = expression(Belowground~biomass~(Mg~C~ha^{-1})), 
        y = element_blank()) +
-  theme(axis.text.y=element_blank(),
-        axis.ticks.y=element_blank()) ->
+  theme(axis.text.y = element_blank(),
+        axis.ticks.y = element_blank()) ->
   bmb_panel2
 ```
 
@@ -957,7 +964,7 @@ lm(RC_annual ~ BM_belowground, data = sub_bmb) %>% summary()
 ### output results - all data
 ```{r Factors testing, fig.width=8, fig.height=6}
 (bd_panel2 | evi_panel2 | map_panel2) /
-(soc_panel2 | mat_panel2 | bmb_panel2)
+  (soc_panel2 | mat_panel2 | bmb_panel2)
 ```
 
 
@@ -982,67 +989,67 @@ lm(RC_annual ~ soc_soilgrids * MiddleClimate, data = allData) %>% summary()
 ## partial dependent plot
 ```{r pdp}
 pdp::partial(rf, pred.var = "MAT", plot = TRUE,
-        plot.engine = "ggplot2") +
+             plot.engine = "ggplot2") +
   labs(x = expression(MAT~(degree~C)),
        y = element_blank()) -> p_mat
 
 pdp::partial(rf, pred.var = "MAP", plot = TRUE,
-        plot.engine = "ggplot2") +
+             plot.engine = "ggplot2") +
   xlab(expression(MAP~(mm))) +
   ylab(expression(Predicted~RC)) -> p_map
 
 pdp::partial(rf, pred.var = "AM_percent", plot = TRUE,
-        plot.engine = "ggplot2") +
+             plot.engine = "ggplot2") +
   xlab(expression(MAP~(mm))) +
   ylab(expression(Predicted~RC)) -> p_am
 
 pdp::partial(rf, pred.var = "EM_percent", plot = TRUE,
-        plot.engine = "ggplot2") +
+             plot.engine = "ggplot2") +
   labs(x = expression(EcM~("%")),
        y = element_blank()) -> p_ecm
 
 pdp::partial(rf, pred.var = "ER_percent", plot = TRUE,
-        plot.engine = "ggplot2") +
+             plot.engine = "ggplot2") +
   labs(x = expression(ErM~("%")),
        y = element_blank()) -> p_erm
 
 pdp::partial(rf, pred.var = "NM_percent", plot = TRUE,
-        plot.engine = "ggplot2") +
+             plot.engine = "ggplot2") +
   xlab(expression(MAP~(mm))) +
   ylab(expression(Predicted~RC)) -> p_nm
 
 pdp::partial(rf, pred.var = "BM_aboveground", plot = TRUE,
-        plot.engine = "ggplot2") +
+             plot.engine = "ggplot2") +
   labs(x = expression(BMa~(Mg~C~ha^{-1})),
        y = element_blank()) -> p_bma
 
 pdp::partial(rf, pred.var = "BM_belowground", plot = TRUE,
-        plot.engine = "ggplot2") +
+             plot.engine = "ggplot2") +
   xlab(expression(MAP~(mm))) +
   ylab(expression(Predicted~RC)) -> p_bmb
 
 pdp::partial(rf, pred.var = "N_dep_half_deg", plot = TRUE,
-        plot.engine = "ggplot2") +
+             plot.engine = "ggplot2") +
   labs(x = expression(N~deposition~(g~N~m^{-2}~yr^{-1})),
-      y = element_blank()) -> p_Ndep
+       y = element_blank()) -> p_Ndep
 
 pdp::partial(rf, pred.var = "bd_soilgrids", plot = TRUE,
-        plot.engine = "ggplot2") +
+             plot.engine = "ggplot2") +
   labs(x = expression(BD~(g~cm^{-3})),
        y = element_blank()) -> p_bd
 
 pdp::partial(rf, pred.var = "clay_soilgrids", plot = TRUE,
-        plot.engine = "ggplot2") +
+             plot.engine = "ggplot2") +
   xlab(expression(MAP~(mm))) +
   ylab(expression(Predicted~RC)) -> p_clay
 
 pdp::partial(rf, pred.var = "soc_soilgrids", plot = TRUE,
-        plot.engine = "ggplot2") +
+             plot.engine = "ggplot2") +
   labs(x = expression(SOC~(Mg~C~ha^{-1})),
        y = element_blank()) -> p_soc
 
 pdp::partial(rf, pred.var = "EVI_mean", plot = TRUE,
-        plot.engine = "ggplot2") +
+             plot.engine = "ggplot2") +
   labs(x = expression(EVI),
        y = element_blank()) -> p_evi
 
@@ -1050,7 +1057,7 @@ pdp::partial(rf, pred.var = "EVI_mean", plot = TRUE,
 
 ```{r, fig.width=8, fig.height=8}
 (p_map | p_bd | p_evi) / (p_bmb | p_soc | p_mat) / (p_clay | p_Ndep | p_bma) / (p_am | p_ecm) / (p_nm | p_erm)
-  # plot_annotation(tag_levels = "a")
+# plot_annotation(tag_levels = "a")
 ```
 
 ```{r}
@@ -1061,3 +1068,6 @@ drake::readd(soilbd) %>% image()
 drake::readd(soilbd_agg) %>% image()
 ```
 
+```{r}
+sessionInfo()
+```
